@@ -1,0 +1,58 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Media and static files
+media/
+staticfiles/
+static/
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv/
+.env
+
+# VS Code and IDEs
+.vscode/
+.idea/
+
+# Python environments
+*.env
+*.venv
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Migration files
+*/migrations/__pycache__/
+*/migrations/*.pyc
+*/migrations/*.pyo
+*/migrations/*.pyd
+
+# Cache
+*.cache
+*.coverage
+.coverage.*
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Pytest
+.cache/
+
+# MyPy
+.mypy_cache/
+
+# Test
+htmlcov/
