@@ -91,3 +91,15 @@ def login(request):
     )
 
     return response
+
+@api_view(["GET"])
+@permission_classes([AllowAny])  
+def check_auth_status(request):
+    if request.user.is_authenticated:
+        return Response({
+            "isAuthenticated": True
+        })
+
+    return Response({
+        "isAuthenticated": False
+    })
