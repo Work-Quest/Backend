@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from api.services.auth_service import register_user, login_user
 from rest_framework import status
 from api.models import BusinessUser
+import requests
+import uuid
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -111,3 +113,72 @@ def check_auth_status(request):
     return Response({
         "isAuthenticated": False
     })
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def google_login(request):
+    access_token = request.data.get("access_token")
+
+    if not access_token:
+        return Response({"error": "Missing access_token"}, status=400)
+
+    # Get Google user info
+    google_res = requests.get(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"}
+    ).json()
+
+    email = google_res.get("email")
+    name = google_res.get("name") or email.split("@")[0]
+    picture = google_res.get("picture")  # optional — save profile image
+
+    if not email:
+        return Response({"error": "Google auth failed"}, status=400)
+
+    # If user does not exist register using your service
+
+    random_password = uuid.uuid4().hex
+    try:
+        user = BusinessUser.objects.get(email=email)
+    except BusinessUser.DoesNotExist:
+        # Use your existing register service
+        user, profile = register_user(
+            username=email.split("@")[0],
+            email=email,
+            password=random_password,        
+            name=name,
+            profile_img=picture,
+        )
+
+    # Log the user in via your login service
+    user, tokens = login_user(
+        username=user.username,
+        password=None,
+        social=True        
+    )
+
+    # Issue cookies
+    response = Response({"username": user.username})
+
+   # HTTP-Only Access Token
+    response.set_cookie(
+        key="access",
+        value=tokens["access"],
+        httponly=True,
+        samesite="lax",
+        secure=False,     # TODO: True in production (HTTPS)
+        max_age=60 * 60 * 24 * 3,  # 3 day
+    )
+
+    # HTTP-Only Refresh Token 
+    response.set_cookie(
+        key="refresh",
+        value=tokens["refresh"],
+        httponly=True,
+        samesite="lax",
+        secure=False, # TODO: True in production (HTTPS)
+        max_age=60 * 60 * 24 * 7,  # 7 days
+    )
+
+    return response

@@ -22,10 +22,14 @@ def register_user(username, email, password, name, profile_img):
     return user, business_user
 
 
-def login_user(username, password):
-    user = authenticate(username=username, password=password)
-    if not user:
-        return None, None
+def login_user(username, password=None, social=False):
+    if social:
+        bussiness_user = BusinessUser.objects.get(username=username)
+        user = bussiness_user.auth_user
+    else:
+        user = authenticate(username=username, password=password)
+        if not user:
+            return None, None
 
     refresh = RefreshToken.for_user(user)
 
