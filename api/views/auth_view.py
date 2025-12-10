@@ -1,5 +1,5 @@
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from api.services.auth_service import register_user, login_user
 from rest_framework import status
@@ -90,6 +90,14 @@ def login(request):
         max_age=60 * 60 * 24 * 7,  # 7 days
     )
 
+    return response
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])  
+def logout(request):
+    response = Response({"message": "Logged out"})
+    response.delete_cookie("access")
+    response.delete_cookie("refresh")
     return response
 
 @api_view(["GET"])
