@@ -1,4 +1,5 @@
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from api.services.auth_service import register_user, login_user
@@ -168,7 +169,7 @@ def google_login(request):
         httponly=True,
         samesite="lax",
         secure=False,     # TODO: True in production (HTTPS)
-        max_age=60 * 60 * 24 * 3,  # 3 day
+        max_age=60*60
     )
 
     # HTTP-Only Refresh Token 
@@ -178,7 +179,33 @@ def google_login(request):
         httponly=True,
         samesite="lax",
         secure=False, # TODO: True in production (HTTPS)
-        max_age=60 * 60 * 24 * 7,  # 7 days
+        max_age=60 * 60 * 24 * 3,  # 3 days
     )
 
+    return response
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def refresh_token(request):
+    refresh_token = request.COOKIES.get("refresh")
+
+    if not refresh_token:
+        return Response({"error": "No refresh token"}, status=401)
+
+    try:
+        refresh = RefreshToken(refresh_token)
+        access = str(refresh.access_token)
+    except Exception:
+        return Response({"error": "Invalid refresh token"}, status=401)
+
+    response = Response({"message": "Token refreshed"})
+    response.set_cookie(
+        key="access",
+        value=access,
+        httponly=True,
+        samesite="Lax",
+        secure=False,  # TODO: True in prod
+        max_age=60*60
+    )
     return response
