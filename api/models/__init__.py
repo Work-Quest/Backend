@@ -1,4 +1,4 @@
-from .User import User
+from .BusinessUser import BusinessUser
 from .Achievement import Achievement
 from .Boss import Boss
 from .BossAttack import BossAttack

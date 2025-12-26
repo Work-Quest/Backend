@@ -1,6 +1,6 @@
 from django.db import models
 import uuid
-from .User import User
+from .BusinessUser import BusinessUser
 
 class Project(models.Model):
     STATUS_CHOICES = [
@@ -9,7 +9,7 @@ class Project(models.Model):
     ]
 
     project_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="owned_projects")
+    owner = models.ForeignKey(BusinessUser, on_delete=models.CASCADE, related_name="owned_projects")
     type = models.CharField(max_length=50)
     created_at = models.DateTimeField(auto_now_add=True)
     deadline = models.DateTimeField(null=True, blank=True)
