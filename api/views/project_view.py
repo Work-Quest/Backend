@@ -5,9 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from services.project_service import ProjectService
-from models.project import Project as ProjectModel
-from domains.project import ProjectDomain
+from api.models import BusinessUser
+from api.services.project_service import ProjectService
 
 
 # -------------------------
@@ -17,37 +16,91 @@ from domains.project import ProjectDomain
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_project(request):
-    domain = ProjectService().create_project(request.data)
-    return Response(
+    """
+    Create a new project.
+
+    This endpoint creates a new project owned by the authenticated user.
+
+    Request Body:
+
         {
-            "project_id": domain.project_model.id,
-            "name": domain.project_model.name,
-            "description": domain.project_model.description,
-            "status": domain.project_model.status,
-        },
-        status=status.HTTP_201_CREATED,
-    )
+            "project_name" : string,
+            "deadline" : datetime
+        }
+
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        domain = ProjectService().create_project(request.data, user)
+        return Response(
+            {   
+                "message": "Project created successfully",
+                "project_id": domain.project.project_id,
+                "name": domain.project.project_name,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def edit_project(request, project_id):
-    domain = ProjectService().edit_project(project_id, request.data)
-    return Response(
+    """
+    Edit an existing project.
+
+    This endpoint updates project information such as name or description.
+
+     Request Body:
+
         {
-            "project_id": domain.project_model.id,
-            "name": domain.project_model.name,
-            "description": domain.project_model.description,
-            "status": domain.project_model.status,
-        },
-        status=status.HTTP_200_OK,
-    )
+            "project_name" : string,
+            "deadline" : datetime,
+            "status" : string ENUM("Working", "Done"),
+            "total_tasks" : int,
+            "completed_tasks" : int
+        }
+
+    """
+    try:
+        domain = ProjectService().edit_project(project_id, request.data)
+        return Response(
+            {
+                "message": "Project updated successfully",
+                "project_id": domain.project.project_id,
+                "project_name" : domain.project.project_name,
+                "deadline" : domain.project.deadline,
+                "status" : domain.project.status,
+                "total_tasks" : domain.project.total_tasks,
+                "completed_tasks" : domain.project.completed_tasks
+            },
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def batch_delete_projects(request):
     """
-    Batch delete projects by project_ids
+    Delete multiple projects in a single request.
+
+    This endpoint allows batch deletion of projects owned by the authenticated user.
+
+    Request Body:
+    
+        {
+            "project_ids": [UUID1, UUID2, ...] 
+        }
     """
     project_ids = request.data.get("project_ids")
 
@@ -79,6 +132,7 @@ def batch_delete_projects(request):
         status=status.HTTP_200_OK,
     )
 
+
 # -------------------------
 # Project Query
 # -------------------------
@@ -86,19 +140,24 @@ def batch_delete_projects(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_projects(request):
-    domains = ProjectService().get_projects(request.user)
+    """
+    Retrieve all projects of the authenticated user.
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    domains = ProjectService().get_projects(user.user_id)
+
     return Response(
         [
             {
-                "project_id": d.project_model.id,
-                "name": d.project_model.name,
-                "status": d.project_model.status,
+                "project_id": d.project.project_id,
+                "project_name": d.project.project_name,
+                "status": d.project.status,
             }
             for d in domains
         ],
         status=status.HTTP_200_OK,
     )
-
 
 
 # -------------------------
@@ -107,8 +166,21 @@ def get_projects(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def join_project(request, project_id):
-    res = ProjectService().join_project(project_id, request.user)
+def join_project(request):
+    """
+    Join a project.
+
+    This endpoint allows the authenticated user to join a project using its project ID.
+
+    Request Body:
+    
+        {
+            "project_id": UUID
+        }
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    res = ProjectService().join_project(request.data.get("project_id"), user)
 
     if not res["member"]:
         return Response(
@@ -118,6 +190,7 @@ def join_project(request, project_id):
 
     return Response(
         {
+            "message": "Joined project successfully",
             "project_member_id": res["member"].project_member_id,
             "hp": res["member"].hp,
             "status": res["member"].status,
@@ -128,8 +201,21 @@ def join_project(request, project_id):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def leave_project(request, project_id):
-    message = ProjectService().leave_project(project_id, request.user)
+def leave_project(request):
+    """
+    Leave a project.
+
+    This endpoint removes the authenticated user from the specified project.
+
+    Request Body:
+    
+        {
+            "project_id": UUID
+        }
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    message = ProjectService().leave_project(request.data.get("project_id"), user)
 
     return Response(
         {"message": message["message"]},

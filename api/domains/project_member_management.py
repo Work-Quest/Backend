@@ -1,7 +1,4 @@
-from Backend.api.domains.project import Project
-from Backend.api.models.ProjectMember import ProjectMember
-from .task_management import TaskManagement
-from models import Task
+from api.models.ProjectMember import ProjectMember
 
 class ProjectMemberManagement:
     def __init__(self, project_model):
@@ -16,12 +13,12 @@ class ProjectMemberManagement:
             )
         return self._members
 
-    def add_member(self, member_data):
+    def add_member(self, member):
         new_member = ProjectMember.objects.create(
             project=self.project,
-            user=member_data["user"],
-            hp=member_data.get("hp", 100),
-            status=member_data.get("status", "Alive"),
+            user=member,
+            hp=100,
+            status="Alive"
         )
         self._members = None
         return new_member

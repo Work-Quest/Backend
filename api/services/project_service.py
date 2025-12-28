@@ -1,33 +1,36 @@
 # services/project_service.py
 from django.db import transaction
-from Backend.api.models.ProjectMember import ProjectMember
-from models.Project import Project as ProjectModel 
-from domains.project import Project as ProjectDomain
-from Backend.api.domains.project import Project
+from api.models.ProjectMember import ProjectMember
+from api.models.Project import Project as ProjectModel 
+from api.domains.project import Project as ProjectDomain
+from api.domains.project import Project
 
 class ProjectService:
 
     @transaction.atomic
-    def create_project(self, project_data):
+    def create_project(self, project_data, user):
         """
         Create project in DB and return ProjectDomain
         """
         project = ProjectModel.objects.create(
-            name=project_data["name"],
-            description=project_data.get("description", ""),
-            start_date=project_data.get("start_date"),
-            end_date=project_data.get("end_date"),
-            status=project_data.get("status", "PLANNING"),
-        )
-
-        return ProjectDomain(project)
+            owner=user,
+            project_name=project_data.get("project_name"),
+            deadline=project_data.get("deadline"),
+            total_tasks=0,
+            completed_tasks=0,
+            status="Working")
+        
+        project_domain = ProjectDomain(project)
+        # add owner as member
+        project_domain._project_member_management.add_member(user)
+        return project_domain
 
     @transaction.atomic
     def edit_project(self, project_id, project_data):
         """
         Load project, apply domain logic, persist changes
         """
-        project = ProjectModel.objects.select_for_update().get(id=project_id)
+        project = ProjectModel.objects.select_for_update().get(project_id=project_id)
 
         domain = ProjectDomain(project)
         domain.edit_project_metadata(project_data)
@@ -38,7 +41,7 @@ class ProjectService:
         """
         Delete project and all related data (tasks, boss, etc.)
         """
-        project = ProjectModel.objects.select_for_update().get(id=project_id)
+        project = ProjectModel.objects.get(project_id=project_id)
 
         try:
             domain = ProjectDomain(project)
@@ -58,7 +61,7 @@ class ProjectService:
         """
         members = (
             ProjectMember.objects
-            .filter(user__id=user_id)
+            .filter(user_id=user_id)
             .select_related("project")
         )
 
@@ -70,34 +73,34 @@ class ProjectService:
         """
         Add user to project as ProjectMember
         """
-        project = ProjectModel.objects.select_for_update().get(id=project_id)
-        domain = ProjectDomain(project)
+        try: 
+            project = ProjectModel.objects.select_for_update().get(project_id=project_id)
+            domain = ProjectDomain(project)
 
-        # prevent duplicate membership
-        existing_member = project.members.filter(user=user).first()
-        if existing_member:
-            return {"message": "User is already a member of the project."}
+            # prevent duplicate membership
+            if ProjectMember.objects.filter(user=user, project=project).exists():
+                return {"error": "User is already a member of the project."}
 
-        member = domain.member_management.add_member({
-            "user": user
-        })
+            member = domain._project_member_management.add_member(user)
 
-        return {"member" : member, "message": "User successfully added to the project."}
+            return {"member" : member, "message": "User successfully added to the project."}
+        except Exception as e:
+            return {"error" : str(e)}
     
     @transaction.atomic
     def leave_project(self, project_id, user):
         """
         Remove user from project as ProjectMember
         """
-        project = ProjectModel.objects.select_for_update().get(id=project_id)
+        project = ProjectModel.objects.select_for_update().get(project_id=project_id)
         domain = ProjectDomain(project)
 
+        project_members = ProjectMember.objects.filter(user=user, project=project)
+
         # prevent removing non-members
-        existing_member = project.members.filter(user=user).first()
-        if existing_member:
-            member = domain.member_management.remove_member({
-                "user": user
-            })
-            return {"message": "User successfully removed from the project."}
+        if project_members.exists():
+            project_member = project_members.first()
+            member = domain._project_member_management.remove_member(project_member.project_member_id)
+            return { "message": "User successfully removed from the project."}
 
         return {"message": "User is not a member of the project."}

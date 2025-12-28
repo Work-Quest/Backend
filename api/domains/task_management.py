@@ -1,6 +1,4 @@
-from Backend.api.models.Task import Task
-from Backend.api.domains.task_management import TaskManagement
-from Backend.api.views.auth_view import check_auth_status
+from api.models.Task import Task
 
 class TaskManagement:
     def __init__(self, project_model):
