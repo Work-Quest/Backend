@@ -41,4 +41,5 @@ class Project:
         return self._project
 
     def check_access(self, user):
-        return self._project_member_management.is_member(user)
+        is_member = self._project_member_management.is_member(user)
+        return is_member and self._project.status == "Working"
