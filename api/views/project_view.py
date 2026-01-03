@@ -33,12 +33,19 @@ def create_project(request):
     try:
         cur_user = request.user
         user = BusinessUser.objects.get(auth_user=cur_user)
-        domain = ProjectService().create_project(request.data, user)
+        d = ProjectService().create_project(request.data, user)
         return Response(
             {   
                 "message": "Project created successfully",
-                "project_id": domain.project.project_id,
-                "name": domain.project.project_name,
+                "project_id": d.project.project_id,
+                "project_name": d.project.project_name,
+                "status": d.project.status,
+                "owner_id": d.project.owner.user_id,
+                "owner_name": d.project.owner.auth_user.username,
+                "created_at": d.project.created_at,
+                "deadline": d.project.deadline,
+                "total_tasks": d.project.total_tasks,
+                "completed_tasks": d.project.completed_tasks,
             },
             status=status.HTTP_201_CREATED,
         )
