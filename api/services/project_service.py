@@ -4,6 +4,8 @@ from api.models.ProjectMember import ProjectMember
 from api.models.Project import Project as ProjectModel 
 from api.domains.project import Project as ProjectDomain
 from api.domains.project import Project
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 class ProjectService:
 
@@ -26,12 +28,33 @@ class ProjectService:
         return project_domain
 
     @transaction.atomic
-    def edit_project(self, project_id, project_data):
+    def edit_project(self, project_id, project_data, user):
         """
         Load project, apply domain logic, persist changes
         """
         project = ProjectModel.objects.select_for_update().get(project_id=project_id)
+        if user != project.owner:
+            raise PermissionError("Only the project owner can close the project.")  
+        
+        deadline_str = project_data.get("deadline")
 
+        if deadline_str:
+            deadline_dt = parse_datetime(deadline_str)
+
+        if deadline_dt is None:
+            raise ValueError("Invalid deadline format")
+
+        if timezone.is_naive(deadline_dt):
+            deadline_dt = timezone.make_aware(deadline_dt)
+
+        created_at = project.created_at
+        if timezone.is_naive(created_at):
+            created_at = timezone.make_aware(created_at)
+
+        if deadline_dt < created_at:
+            raise ValueError(
+                "Deadline cannot be earlier than project creation date."
+            )
         domain = ProjectDomain(project)
         domain.edit_project_metadata(project_data)
 
@@ -104,3 +127,14 @@ class ProjectService:
             return { "message": "User successfully removed from the project."}
 
         return {"message": "User is not a member of the project."}
+    
+    def close_project(self, project_id, user):
+        """
+        Close the project
+        """
+        project = ProjectModel.objects.get(project_id=project_id)
+        domain = ProjectDomain(project)
+        if user != project.owner:
+            raise PermissionError("Only the project owner can close the project.")
+        domain.close_project()
+        return domain 

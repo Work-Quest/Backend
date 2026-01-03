@@ -16,27 +16,26 @@ class Project:
         return self._task_management
 
     def edit_project_metadata(self, project_data):
-        self._project.project_name = project_data.get(
-            "project_name", self._project.project_name
-        )
+        if "project_name" in project_data:
+            self._project.project_name = project_data["project_name"]
 
-        self._project.deadline = project_data.get(
-            "deadline", self._project.deadline
-        )
+        if "deadline" in project_data:
+            self._project.deadline = project_data["deadline"]
 
-        self._project.status = project_data.get(
-            "status", self._project.status
-        )
+        if "status" in project_data:
+            self._project.status = project_data["status"]
 
-        self._project.total_tasks = project_data.get(
-            "total_tasks", self._project.total_tasks
-        )
+        if "total_tasks" in project_data:
+            self._project.total_tasks = project_data["total_tasks"]
 
-        self._project.completed_tasks = project_data.get(
-            "completed_tasks", self._project.completed_tasks
-        )
+        if "completed_tasks" in project_data:
+            self._project.completed_tasks = project_data["completed_tasks"]
 
         self._project.save()
         
         return self._project
     
+    def close_project(self):
+        self._project.status = "closed"
+        self._project.save()
+        return self._project

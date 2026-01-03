@@ -76,12 +76,18 @@ def edit_project(request, project_id):
 
     """
     try:
-        domain = ProjectService().edit_project(project_id, request.data)
+        print("Editing project:", project_id, request.data)
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        domain = ProjectService().edit_project(project_id, request.data, user)
         return Response(
             {
                 "message": "Project updated successfully",
                 "project_id": domain.project.project_id,
                 "project_name" : domain.project.project_name,
+                "owner_id" : domain.project.owner.user_id,
+                "owner_name" : domain.project.owner.auth_user.username,
+                "created_at" : domain.project.created_at,
                 "deadline" : domain.project.deadline,
                 "status" : domain.project.status,
                 "total_tasks" : domain.project.total_tasks,
@@ -90,6 +96,7 @@ def edit_project(request, project_id):
             status=status.HTTP_200_OK,
         )
     except Exception as e:
+        print("Error editing project:", str(e))
         return Response(
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST,
@@ -233,5 +240,32 @@ def leave_project(request):
 
     return Response(
         {"message": message["message"]},
+        status=status.HTTP_200_OK,
+    )
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def close_project(request):
+    """
+    Close a project.
+
+    This endpoint closes the specified project.
+
+    Request Body:
+    
+        {
+            "project_id": UUID  
+        }
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+
+    domain = ProjectService().close_project(request.data.get("project_id"), user)
+    return Response(
+        {
+            "message": "Project closed successfully",
+            "project_id": domain.project.project_id,
+            "status": domain.project.status,
+        },
         status=status.HTTP_200_OK,
     )
