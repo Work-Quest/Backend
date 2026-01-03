@@ -39,3 +39,6 @@ class Project:
         self._project.status = "closed"
         self._project.save()
         return self._project
+
+    def check_access(self, user):
+        return self._project_member_management.is_member(user)

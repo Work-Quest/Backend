@@ -236,12 +236,17 @@ def leave_project(request):
     """
     cur_user = request.user
     user = BusinessUser.objects.get(auth_user=cur_user)
-    message = ProjectService().leave_project(request.data.get("project_id"), user)
-
+    is_left = ProjectService().leave_project(request.data.get("project_id"), user)
+    if is_left:
+        return Response(
+            {"message": "Left project successfully"},
+            status=status.HTTP_200_OK,
+        )
     return Response(
-        {"message": message["message"]},
-        status=status.HTTP_200_OK,
+        {"message": "Failed to leave project"},
+        status=status.HTTP_400_BAD_REQUEST,
     )
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -268,4 +273,28 @@ def close_project(request):
             "status": domain.project.status,
         },
         status=status.HTTP_200_OK,
+    )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def check_project_access(request, project_id):
+    """
+    Check if the authenticated user has access to the specified project.
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    has_access = ProjectService().check_project_access(project_id, user)
+    if has_access is None:
+        return Response(
+            {"error": "Project not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    if has_access:
+        return Response(
+            {"message": "User has access to the project."},
+            status=status.HTTP_200_OK,
+        )
+    return Response(
+        {"message": "User does not have access to the project."},
+        status=status.HTTP_403_FORBIDDEN,
     )

@@ -124,9 +124,8 @@ class ProjectService:
         if project_members.exists():
             project_member = project_members.first()
             member = domain._project_member_management.remove_member(project_member.project_member_id)
-            return { "message": "User successfully removed from the project."}
-
-        return {"message": "User is not a member of the project."}
+            return True
+        return False
     
     def close_project(self, project_id, user):
         """
@@ -138,3 +137,8 @@ class ProjectService:
             raise PermissionError("Only the project owner can close the project.")
         domain.close_project()
         return domain 
+    
+    def check_project_access(self, project_id, user):
+        project = ProjectModel.objects.get(project_id=project_id)
+        domain = ProjectDomain(project)
+        return domain.check_access(user)

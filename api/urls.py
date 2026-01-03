@@ -17,6 +17,8 @@ urlpatterns = [
     path("project/edit/<uuid:project_id>", edit_project, name="edit_project"),
     path("project/delete",batch_delete_projects,name="batch_delete_projects"),
     path("project/get_user_project/", get_projects, name="get_projects"),
+    path("project/close", close_project, name="close_project"),
+    path("project/access/<uuid:project_id>", check_project_access, name="check_project_access"),
     path("project/member/join",join_project,name="join_project"),
     path("project/member/leave",leave_project,name="leave_project"),
 ]

@@ -52,3 +52,9 @@ class ProjectMemberManagement:
         member.delete()
         self._members = None
         return True
+    
+    def is_member(self, user):
+        for i in self.members:
+            if i.user == user:
+                return True
+        return False 
