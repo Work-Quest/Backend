@@ -8,7 +8,7 @@ from rest_framework import status
 
 from api.models import BusinessUser
 from api.services.project_service import ProjectService
-
+from api.serializers.project_serializer import ProjectSerializer, ProjectMemberSerializer
 
 # -------------------------
 # Project CRUD
@@ -33,20 +33,10 @@ def create_project(request):
     try:
         cur_user = request.user
         user = BusinessUser.objects.get(auth_user=cur_user)
-        d = ProjectService().create_project(request.data, user)
+        domain = ProjectService().create_project(request.data, user)
+        serializer = ProjectSerializer(domain.project)
         return Response(
-            {   
-                "message": "Project created successfully",
-                "project_id": d.project.project_id,
-                "project_name": d.project.project_name,
-                "status": d.project.status,
-                "owner_id": d.project.owner.user_id,
-                "owner_name": d.project.owner.auth_user.username,
-                "created_at": d.project.created_at,
-                "deadline": d.project.deadline,
-                "total_tasks": d.project.total_tasks,
-                "completed_tasks": d.project.completed_tasks,
-            },
+            serializer.data,
             status=status.HTTP_201_CREATED,
         )
     except Exception as e:
@@ -80,19 +70,9 @@ def edit_project(request, project_id):
         cur_user = request.user
         user = BusinessUser.objects.get(auth_user=cur_user)
         domain = ProjectService().edit_project(project_id, request.data, user)
+        serializer = ProjectSerializer(domain.project)
         return Response(
-            {
-                "message": "Project updated successfully",
-                "project_id": domain.project.project_id,
-                "project_name" : domain.project.project_name,
-                "owner_id" : domain.project.owner.user_id,
-                "owner_name" : domain.project.owner.auth_user.username,
-                "created_at" : domain.project.created_at,
-                "deadline" : domain.project.deadline,
-                "status" : domain.project.status,
-                "total_tasks" : domain.project.total_tasks,
-                "completed_tasks" : domain.project.completed_tasks
-            },
+            serializer.data,
             status=status.HTTP_200_OK,
         )
     except Exception as e:
@@ -114,7 +94,7 @@ def batch_delete_projects(request):
     Request Body:
     
         {
-            "project_ids": [UUID1, UUID2, ...] 
+            "project_ids": [UUID1, UUID2, ...]
         }
     """
     project_ids = request.data.get("project_ids")
@@ -162,21 +142,9 @@ def get_projects(request):
     user = BusinessUser.objects.get(auth_user=cur_user)
     domains = ProjectService().get_projects(user.user_id)
 
+    serializer = ProjectSerializer([d.project for d in domains], many=True)
     return Response(
-        [
-            {
-                "project_id": d.project.project_id,
-                "project_name": d.project.project_name,
-                "status": d.project.status,
-                "owner_id": d.project.owner.user_id,
-                "owner_name": d.project.owner.auth_user.username,
-                "created_at": d.project.created_at,
-                "deadline": d.project.deadline,
-                "total_tasks": d.project.total_tasks,
-                "completed_tasks": d.project.completed_tasks,
-            }
-            for d in domains
-        ],
+        serializer.data,
         status=status.HTTP_200_OK,
     )
 
@@ -209,12 +177,11 @@ def join_project(request):
             status=status.HTTP_404_NOT_FOUND,
         )
 
+    serializer = ProjectMemberSerializer(res["member"])
     return Response(
         {
             "message": "Joined project successfully",
-            "project_member_id": res["member"].project_member_id,
-            "hp": res["member"].hp,
-            "status": res["member"].status,
+            "project_member": serializer.data,
         },
         status=status.HTTP_201_CREATED,
     )
@@ -266,12 +233,9 @@ def close_project(request):
     user = BusinessUser.objects.get(auth_user=cur_user)
 
     domain = ProjectService().close_project(request.data.get("project_id"), user)
+    serializer = ProjectSerializer(domain.project)
     return Response(
-        {
-            "message": "Project closed successfully",
-            "project_id": domain.project.project_id,
-            "status": domain.project.status,
-        },
+        serializer.data,
         status=status.HTTP_200_OK,
     )
 

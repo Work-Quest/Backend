@@ -1,4 +1,9 @@
 from api.models.Task import Task
+from api.models.UserTask import UserTask
+from api.models.ProjectMember import ProjectMember
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+
 
 class TaskManagement:
     def __init__(self, project_model):
@@ -12,47 +17,71 @@ class TaskManagement:
                 Task.objects.filter(project=self.project)
             )
         return self._tasks
-    
+
+    def get_all_tasks(self):
+        return Task.objects.filter(project=self.project)
+
     def create_task(self, task_data):
         new_task = Task.objects.create(
             project=self.project,
-            title=task_data.get("title"),
+            type=task_data.get("type"),
+            priority=task_data.get("priority", 0),
+            task_name=task_data.get("task_name"),
             description=task_data.get("description"),
-            status=task_data.get("status", "To Do"),
-            assignee=task_data.get("assignee"))
-        # clear cache for updated tasks
+            status=task_data.get("status", "Todo"),
+        )
         self._tasks = None
-        return new_task 
-    
+        return new_task
+
     def get_task(self, task_id):
         try:
-            task = Task.objects.get(id=task_id, project=self.project)
+            task = Task.objects.get(task_id=task_id, project=self.project)
             return task
         except Task.DoesNotExist:
             return None
-    
+
     def edit_task(self, task_id, task_data):
         task = self.get_task(task_id)
         if not task:
             return None
-        
-        task.title = task_data.get("title", task.title)
+
+        task.type = task_data.get("type", task.type)
+        task.priority = task_data.get("priority", task.priority)
+        task.task_name = task_data.get("task_name", task.task_name)
         task.description = task_data.get("description", task.description)
         task.status = task_data.get("status", task.status)
-        task.assignee = task_data.get("assignee", task.assignee)
         task.save()
-        
-        # clear cache for updated tasks
+
         self._tasks = None
         return task
-    
+
     def delete_task(self, task_id):
         task = self.get_task(task_id)
         if not task:
             return False
-        
+
         task.delete()
-        
-        # clear cache for updated tasks
         self._tasks = None
         return True
+
+    def assign_user_to_task(self, task_id, project_member_id):
+        with transaction.atomic():
+            task = get_object_or_404(Task, task_id=task_id, project=self.project)
+            project_member = get_object_or_404(ProjectMember, id=project_member_id, project=self.project)
+
+            user_task, created = UserTask.objects.get_or_create(
+                project_member=project_member,
+                task=task
+            )
+            return user_task, created
+
+    def unassign_user_from_task(self, task_id, project_member_id):
+        with transaction.atomic():
+            task = get_object_or_404(Task, task_id=task_id, project=self.project)
+            project_member = get_object_or_404(ProjectMember, id=project_member_id, project=self.project)
+
+            deleted_count, _ = UserTask.objects.filter(
+                project_member=project_member,
+                task=task
+            ).delete()
+            return deleted_count > 0
