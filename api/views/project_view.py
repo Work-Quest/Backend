@@ -262,3 +262,24 @@ def check_project_access(request, project_id):
         {"message": "User does not have access to the project."},
         status=status.HTTP_403_FORBIDDEN,
     )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_all_project_members(request, project_id):
+    """
+    Retrieve all members of a specified project.
+    """
+    members = ProjectService().get_all_project_members(project_id)
+    members_data = []
+    for i in members:
+        metadata = {"id" : i.project_member_id,
+                    "name" : i.user.name,
+                    "username" : i.user.username,
+                    "hp" : i.hp,
+                    "status" : i.status}
+        members_data.append(metadata)
+
+    return Response(
+        members_data,
+        status=status.HTTP_200_OK
+    )

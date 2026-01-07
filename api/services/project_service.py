@@ -142,3 +142,12 @@ class ProjectService:
         project = ProjectModel.objects.get(project_id=project_id)
         domain = ProjectDomain(project)
         return domain.check_access(user)
+    
+    def get_all_project_members(self, project_id):
+        """
+        Get all members of the project
+        """
+        project = ProjectModel.objects.get(project_id=project_id)
+        domain = ProjectDomain(project)
+        members = domain._project_member_management.members
+        return members

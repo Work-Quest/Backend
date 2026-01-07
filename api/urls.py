@@ -15,13 +15,14 @@ urlpatterns = [
     path("me/", me),
     # ----- Project URLs -----
     path("project/create/", create_project, name="create_project"),
-    path("project/edit/<uuid:project_id>/", edit_project, name="edit_project"),
+    path("project/<uuid:project_id>/edit/", edit_project, name="edit_project"),
     path("project/delete/",batch_delete_projects,name="batch_delete_projects"),
     path("project/get_user_project/", get_projects, name="get_projects"),
     path("project/close/", close_project, name="close_project"),
-    path("project/access/<uuid:project_id>/", check_project_access, name="check_project_access"),
+    path("project/<uuid:project_id>/access/", check_project_access, name="check_project_access"),
     path("project/member/join/",join_project,name="join_project"),
     path("project/member/leave/",leave_project,name="leave_project"),
+    path("project/<uuid:project_id>/members/",get_all_project_members,name="get_all_project_members"),
     # ----- Task URLs -----
     path("project/<uuid:project_id>/tasks/", task_list, name="task_list"),
     path("project/<uuid:project_id>/tasks/create/", task_create, name="task_create"),

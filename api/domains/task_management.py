@@ -24,13 +24,15 @@ class TaskManagement:
     def create_task(self, task_data):
         new_task = Task.objects.create(
             project=self.project,
-            type=task_data.get("type"),
             priority=task_data.get("priority", 0),
             task_name=task_data.get("task_name"),
             description=task_data.get("description"),
-            status=task_data.get("status", "Todo"),
+            status=task_data.get("status", "backlog"),
+            deadline=task_data.get("deadline")
         )
         self._tasks = None
+        self.project.total_tasks += 1
+        self.project.save()
         return new_task
 
     def get_task(self, task_id):
@@ -45,11 +47,11 @@ class TaskManagement:
         if not task:
             return None
 
-        task.type = task_data.get("type", task.type)
         task.priority = task_data.get("priority", task.priority)
         task.task_name = task_data.get("task_name", task.task_name)
         task.description = task_data.get("description", task.description)
         task.status = task_data.get("status", task.status)
+        task.deadline = task_data.get("deadline", task.deadline)
         task.save()
 
         self._tasks = None
@@ -67,7 +69,7 @@ class TaskManagement:
     def assign_user_to_task(self, task_id, project_member_id):
         with transaction.atomic():
             task = get_object_or_404(Task, task_id=task_id, project=self.project)
-            project_member = get_object_or_404(ProjectMember, id=project_member_id, project=self.project)
+            project_member = get_object_or_404(ProjectMember, project_member_id=project_member_id, project=self.project)
 
             user_task, created = UserTask.objects.get_or_create(
                 project_member=project_member,
@@ -78,10 +80,12 @@ class TaskManagement:
     def unassign_user_from_task(self, task_id, project_member_id):
         with transaction.atomic():
             task = get_object_or_404(Task, task_id=task_id, project=self.project)
-            project_member = get_object_or_404(ProjectMember, id=project_member_id, project=self.project)
+            project_member = get_object_or_404(ProjectMember, project_member_id=project_member_id, project=self.project)
 
             deleted_count, _ = UserTask.objects.filter(
                 project_member=project_member,
                 task=task
             ).delete()
             return deleted_count > 0
+        
+
