@@ -58,13 +58,27 @@ class TaskManagement:
         return task
 
     def delete_task(self, task_id):
-        task = self.get_task(task_id)
-        if not task:
-            return False
+        with transaction.atomic():
+            task = self.get_task(task_id)
+            if not task:
+                return False
 
-        task.delete()
-        self._tasks = None
-        return True
+            # delete any UserTask assignments that reference this task
+            UserTask.objects.filter(task=task).delete()
+
+            task.delete()
+            self._tasks = None
+
+            # decrement project's total tasks count if present
+            try:
+                if hasattr(self.project, "total_tasks") and self.project.total_tasks > 0:
+                    self.project.total_tasks -= 1
+                    self.project.save()
+            except Exception:
+                # ensure deletion isn't blocked by count update failures
+                pass
+
+            return True
 
     def assign_user_to_task(self, task_id, project_member_id):
         with transaction.atomic():
