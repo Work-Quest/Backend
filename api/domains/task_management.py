@@ -56,6 +56,28 @@ class TaskManagement:
 
         self._tasks = None
         return task
+    
+    def move_task(self, task_id, task_data):
+        task = self.get_task(task_id)
+        cur_status = task.status
+        if not task:
+            return None
+    
+        task_status = task_data.get("status")
+        task.status = task_status
+
+        if cur_status != "done" and task_status == "done":
+            if self.project.completed_tasks == None :
+                self.project.completed_tasks += 1
+            else:
+                self.project.completed_tasks += 1
+        elif cur_status == "done" and task_status != "done":
+            if self.project.completed_tasks >0:
+                self.project.completed_tasks -= 1
+        task.save()
+        self.project.save()
+        return task
+
 
     def delete_task(self, task_id):
         with transaction.atomic():

@@ -57,6 +57,27 @@ def task_detail(request, project_id, task_id):
     return Response(serializer.data)
 
 
+@api_view(['PATCH'])
+def task_move(request, project_id, task_id):
+    """
+    move an existing task within a project in kanbanboard.
+
+    Request Body:
+
+        {
+            "status": string,
+        }
+    """
+    task_service = TaskService(project_id)
+    task = task_service.get_task(task_id)
+
+    if not task:
+        return Response({"error": "Task not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    moved_task = task_service.move_task(task_id, request.data)
+    serializer = TaskResponseSerializer(moved_task)
+    return Response(serializer.data)
+
 @api_view(['PUT'])
 def task_update(request, project_id, task_id):
     """

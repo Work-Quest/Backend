@@ -28,6 +28,11 @@ class TaskService:
         if not self._domain.check_access:
             raise PermissionError("User does not have access to this project.")
         return self._task_management.edit_task(task_id, task_data)
+    
+    def move_task(self, task_id, task_data):
+        if not self._domain.check_access:
+            raise PermissionError("User does not have access to this project.")
+        return self._task_management.move_task(task_id, task_data)
 
     def delete_task(self, task_id):
         if not self._domain.check_access:

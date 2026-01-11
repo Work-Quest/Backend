@@ -1,7 +1,7 @@
 import django.db
 from django.urls import path
 from api.views import *
-from api.views.task_view import task_list, task_create, task_detail, task_update, task_delete, task_assign, task_unassign
+from api.views.task_view import *
 import rest_framework.decorators
 
 urlpatterns = [
@@ -28,6 +28,7 @@ urlpatterns = [
     path("project/<uuid:project_id>/tasks/create/", task_create, name="task_create"),
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/", task_detail, name="task_detail"),
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/update/", task_update, name="task_update"),
+    path("project/<uuid:project_id>/tasks/<uuid:task_id>/move/", task_move, name="task_move"),
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/delete/", task_delete, name="task_delete"),
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/assign/", task_assign, name="task_assign"),
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/unassign/", task_unassign, name="task_unassign"),
