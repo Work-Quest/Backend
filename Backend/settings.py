@@ -34,7 +34,7 @@ SECRET_KEY = 'django-insecure-!qhz^l=tao%1$($e4c7+6!wapc2ac)lsj3sm9biq+ooer_ylwd
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['worquest-backend.onrender.com']
 
 
 # Application definition
