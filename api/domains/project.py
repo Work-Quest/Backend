@@ -35,6 +35,11 @@ class Project:
         
         return self._project
     
+    def setup_boss(self):
+        self._project.status = "Working"
+        all_tasks = self._task_management.get
+        
+    
     def close_project(self):
         self._project.status = "closed"
         self._project.save()
