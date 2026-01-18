@@ -21,10 +21,12 @@ class ProjectService:
             total_tasks=0,
             completed_tasks=0,
             status="Working")
-        
+
         project_domain = ProjectDomain(project)
         # add owner as member
         project_domain._project_member_management.add_member(user)
+        # setup boss for the project
+        project_domain.setup_boss()
         return project_domain
 
     @transaction.atomic

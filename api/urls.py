@@ -2,6 +2,7 @@ import django.db
 from django.urls import path
 from api.views import *
 from api.views.task_view import *
+from api.views.game_view import *
 import rest_framework.decorators
 
 urlpatterns = [
@@ -32,4 +33,9 @@ urlpatterns = [
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/delete/", task_delete, name="task_delete"),
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/assign/", task_assign, name="task_assign"),
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/unassign/", task_unassign, name="task_unassign"),
+    # ----- Game URLs -----
+    path("game/bosses/", get_all_bosses, name="get_all_bosses"),
+    path("game/project/<uuid:project_id>/boss/", get_project_boss, name="get_project_boss"),
+    path("game/project/<uuid:project_id>/boss/setup/", setup_project_boss, name="setup_project_boss"),
+    # path("game/project/<uuid:project_id>/boss/attack/", attack_boss, name="attack_boss"),
 ]

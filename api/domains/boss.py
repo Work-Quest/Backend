@@ -1,5 +1,3 @@
-from Backend.api.domains.boss import Boss
-import rest_framework
 class Boss:
     def __init__(self, boss_model):
         self._boss = boss_model
@@ -38,6 +36,22 @@ class Boss:
 
         self._boss.max_hp = value
         self._boss.save(update_fields=["max_hp", "hp"])
+    
+    @property
+    def boss(self):
+        return self._boss.boss
+    @boss.setter
+    def boss(self, value):
+        self._boss.boss = value
+        self._boss.save(update_fields=["boss"])
+
+    @property
+    def name(self):
+        return self._boss.boss.name
+    
+    @property
+    def image(self):
+        return self._boss.boss.image
 
 
     

@@ -1,11 +1,18 @@
 from api.domains.project_member_management import ProjectMemberManagement
+from api.domains.boss import Boss as BossDomain
+from api.models.ProjectBoss import ProjectBoss
+from api.models.Boss import Boss
 from .task_management import TaskManagement
+import random
 
 class Project:
     def __init__(self, project_model):
         self._project = project_model
         self._project_member_management = ProjectMemberManagement(project_model)
         self._task_management = TaskManagement(project_model)
+
+        project_boss_model = ProjectBoss.objects.create(project=project_model, boss=None, hp=0, max_hp=0, status="Alive")
+        self._boss = BossDomain(project_boss_model)
 
     @property
     def project(self):
@@ -35,10 +42,15 @@ class Project:
         
         return self._project
     
-    def setup_boss(self):
-        self._project.status = "Working"
-        all_tasks = self._task_management.get
-        
+    def initail_boss_set_up(self):
+        all_boss = list(Boss.objects.all())
+        selected_boss = random.choice(all_boss)  
+        self._boss.boss = selected_boss
+
+        all_tasks = self._task_management.tasks
+        boss_hp = sum(task.priority for task in all_tasks) * 10
+        self._boss.max_hp = boss_hp
+
     
     def close_project(self):
         self._project.status = "closed"
