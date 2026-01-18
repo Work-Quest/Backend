@@ -1,5 +1,7 @@
 from django.db import models
 import uuid
+
+from django.utils import timezone
 from .Project import Project
 from .Boss import Boss
 
@@ -15,4 +17,5 @@ class ProjectBoss(models.Model):
     hp = models.IntegerField(default=0)
     max_hp = models.IntegerField(default=1000)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Alive")
-
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(default=timezone.now)

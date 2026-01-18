@@ -1,3 +1,4 @@
+from Backend.api.models.BossAttack import BossAttack
 
 class ProjectMember:
     def __init__(self, member):

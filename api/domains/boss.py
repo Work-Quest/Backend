@@ -52,6 +52,14 @@ class Boss:
     @property
     def image(self):
         return self._boss.boss.image
+    
+    @property
+    def updated_at(self):
+        return self._boss.updated_at
+    @updated_at.setter
+    def updated_at(self, value):
+        self._boss.updated_at = value
+        self._boss.save(update_fields=["updated_at"])
 
 
     
