@@ -1,3 +1,6 @@
+from api.models import UserTask
+
+
 class Task:
     def __init__(self, task_model):
         self._task = task_model
@@ -68,3 +71,12 @@ class Task:
 
     def save(self):
         self._task.save()
+
+    def get_project_member(self):
+        user_task = UserTask.objects.get(
+            task=self._task
+        )
+        return user_task.project_member
+
+
+

@@ -1,4 +1,5 @@
 from api.models.Task import Task
+from api.models.TaskLog import TaskLog
 from api.models.UserTask import UserTask
 from api.models.ProjectMember import ProjectMember
 from django.db import transaction
@@ -65,32 +66,49 @@ class TaskManagement:
         self._tasks = None
         return task
     
-    def move_task(self, task_id, task_data):
+    def move_task(self, task_id, task_data, user):
+        EVENT = "TASK_UPDATED"
         task = self.get_task(task_id)
         if not task:
             return None
 
         cur_status = task.status
+
+        if cur_status == "done":
+            raise ValueError("Cannot move a completed task back to an active status.")
+        
         task_status = task_data.get("status")
         task.status = task_status
 
-        if cur_status != "done" and task_status == "done":
-            if self.project.completed_tasks == None :
-                self.project.completed_tasks += 1
-            else:
-                self.project.completed_tasks += 1
-        elif cur_status == "done" and task_status != "done":
-            if self.project.completed_tasks >0:
-                self.project.completed_tasks -= 1
-        self.project.save()
+        if task_status == "done":
+            self.project.completed_tasks += 1
+            self.project.save(update_fields=["completed_tasks"])
+
+            EVENT = "TASK_COMPLETED"
+        
+        project_member = task.get_project_member()
+        # get current user if not assigned, assign to user making the move
+        if not project_member:
+            project_member = ProjectMember.objects.get(
+                user_id=user.user_id)
+
+        log = TaskLog.objects.create(
+            project_member=task.get_project_member(),
+            task=task._task,
+            action_type="USER",
+            event=EVENT
+        )   
+        
         return task
 
 
-    def delete_task(self, task_id):
+    def delete_task(self, task_id, user):
         with transaction.atomic():
             task = self.get_task(task_id)
             if not task:
                 return False
+            
+            project_member = task.get_project_member()
 
             # delete any UserTask assignments that reference this task
             UserTask.objects.filter(task=task._task).delete()
@@ -107,9 +125,19 @@ class TaskManagement:
                 # ensure deletion isn't blocked by count update failures
                 pass
 
+            if not project_member:
+                project_member = ProjectMember.objects.get(
+                    user_id=user.user_id)
+
+            log = TaskLog.objects.create(
+                project_member=project_member,
+                action_type="USER",
+                event="TASK_DELETED"
+            )   
+
             return True
 
-    def assign_user_to_task(self, task_id, project_member_id):
+    def assign_user_to_task(self, task_id, project_member_id, user):
         with transaction.atomic():
             task_domain = self.get_task(task_id)
             if not task_domain:
@@ -120,9 +148,21 @@ class TaskManagement:
                 project_member=project_member,
                 task=task_domain._task
             )
+
+
+            assigned_project_member = ProjectMember.objects.get(
+                user_id=user.user_id)
+
+            log = TaskLog.objects.create(
+                project_member=assigned_project_member,
+                task=task_domain._task,
+                action_type="USER",
+                event="ASSIGN_USER"
+            )   
+
             return user_task, created
 
-    def unassign_user_from_task(self, task_id, project_member_id):
+    def unassign_user_from_task(self, task_id, project_member_id, user):
         with transaction.atomic():
             task_domain = self.get_task(task_id)
             if not task_domain:
@@ -133,6 +173,16 @@ class TaskManagement:
                 project_member=project_member,
                 task=task_domain._task
             ).delete()
+
+            assigned_project_member = ProjectMember.objects.get(
+                user_id=user.user_id)
+
+            log = TaskLog.objects.create(
+                project_member=assigned_project_member,
+                task=task_domain._task,
+                action_type="USER",
+                event="UNASSIGN_USER"
+            )   
             return deleted_count > 0
         
 

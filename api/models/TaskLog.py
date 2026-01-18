@@ -18,6 +18,8 @@ class TaskLog(models.Model):
         TASK_UPDATED = "TASK_UPDATED"
         TASK_DELETED = "TASK_DELETED"
         TASK_COMPLETED = "TASK_COMPLETED"
+        ASSIGN_USER = "ASSIGN_USER"
+        UNASSIGN_USER = "UNASSIGN_USER"
 
         # --- Game mechanics ---
         USER_ATTACK = "USER_ATTACK"
