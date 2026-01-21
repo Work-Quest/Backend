@@ -1,3 +1,5 @@
+from api.models.UserEffect import UserEffect
+
 class ProjectMember:
     def __init__(self, member):
         self._member = member
@@ -29,10 +31,10 @@ class ProjectMember:
     @hp.setter
     def hp(self, value: int):
         if value < 0:
-            raise ValueError("Boss HP cannot be negative")
+            raise ValueError("Player HP cannot be negative")
 
         if value > self.max_hp:
-            raise ValueError("Boss HP cannot exceed max_hp")
+            raise ValueError("Player HP cannot exceed max_hp")
 
         self._member.hp = value
         self._member.save(update_fields=["hp"])
@@ -44,7 +46,7 @@ class ProjectMember:
     @max_hp.setter
     def max_hp(self, value: int):
         if value <= 0:
-            raise ValueError("Boss max_hp must be greater than 0")
+            raise ValueError("Player max_hp must be greater than 0")
 
         # keep HP valid when max_hp changes
         if self.hp > value:
@@ -53,8 +55,43 @@ class ProjectMember:
         self._member.max_hp = value
         self._member.save(update_fields=["max_hp", "hp"])
 
+    @property
+    def score(self):
+        return self._member.score
+    @score.setter
+    def score(self, value: int):
+        if value < 0:
+            raise ValueError("Player score cannot be negative")
+
+        self._member.score = value
+        self._member.save(update_fields=["score"])
+
     def delete(self):
-        if self._deleted:
-            return
-        
         self._member.delete()
+
+    def effects(self):
+        return list(UserEffect.objects.filter(project_member=self._member))
+    
+    def applied(self, effect):
+        UserEffect.objects.create(
+            project_member=self._member,
+            effect=effect
+        )
+
+    def clear_effect(self, userEffect):
+        userEffect.delete()
+
+
+    def attacked(self, damage):
+        new_hp = self.hp - damage
+        if new_hp < 0:
+            new_hp = 0
+        self.hp = new_hp
+
+    def heal(self, heal_amount):
+        new_hp = self.hp + heal_amount
+        if new_hp > self.max_hp:
+            new_hp = self.max_hp
+        self.hp = new_hp
+
+  

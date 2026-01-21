@@ -2,6 +2,11 @@ class Boss:
     def __init__(self, boss_model):
         self._boss = boss_model
 
+
+    @property
+    def project_boss(self):
+        return self._boss
+
     @property
     def hp(self) -> int:
         return self._boss.hp
@@ -62,4 +67,8 @@ class Boss:
         self._boss.save(update_fields=["updated_at"])
 
 
-    
+    def attacked(self, damage):
+        new_hp = self.hp - damage
+        if new_hp < 0:
+            new_hp = 0
+        self.hp = new_hp

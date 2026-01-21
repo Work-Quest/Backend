@@ -77,6 +77,17 @@ class Task:
             task=self._task
         )
         return user_task.project_member
+    
+    def get_assigned_members(self):
+        user_tasks = UserTask.objects.filter(
+            task=self._task
+        )
+        return [ut.project_member for ut in user_tasks]
+    
+    def is_completed(self):
+        return self._task.status == "done"
+
+
 
 
 

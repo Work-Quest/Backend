@@ -1,5 +1,6 @@
 from django.db import models
 import uuid
+
 from .Project import Project
 from .BusinessUser import BusinessUser
 
@@ -14,4 +15,5 @@ class ProjectMember(models.Model):
     user = models.ForeignKey(BusinessUser, on_delete=models.CASCADE, related_name="projects")
     hp = models.IntegerField(default=0)
     max_hp = models.IntegerField(default=100)
+    score = models.IntegerField(default=0)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Alive")

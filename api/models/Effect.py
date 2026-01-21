@@ -4,9 +4,12 @@ from django.db import models
 class Effect(models.Model):
 
     class EffectType(models.TextChoices):
-        DAMAGE_MULTIPLIER = "DAMAGE_MULTIPLIER"
+        DAMAGE_BUFF = "DAMAGE_BUFF"
+        DAMAGE_DEBUFF = "DAMAGE_DEBUFF"
         SCORE_BONUS = "SCORE_BONUS"
-        DAMAGE_RESISTANCE = "DAMAGE_RESISTANCE"
+        SCORE_PENALTY = "SCORE_PENALTY"
+        DEFENCE_BUFF = "DEFENCE_BUFF"
+        DEFENCE_DEBUFF = "DEFENCE_DEBUFF"
         HEAL = "HEAL"
 
     effect_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
