@@ -3,6 +3,10 @@ from api.models.UserEffect import UserEffect
 class ProjectMember:
     def __init__(self, member):
         self._member = member
+    
+    @property
+    def project_member(self):
+        return self._member
 
     @property
     def user(self):

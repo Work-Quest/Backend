@@ -30,16 +30,14 @@ class ProjectMemberManagement:
 
     def get_member(self, member_id):
         if self._members is None:
-            raise RuntimeError(
-                "Members are not loaded. Call `.members` before using get_member()."
-            )
+            _ = self.members
 
         for member in self._members:
-            if member.project_member_id == member_id:
+            if str(member.project_member_id) == member_id:
                 return member
 
         return None
-
+    
     def edit_member(self, member_id, member_data):
         member = self.get_member(member_id)
         if not member:

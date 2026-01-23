@@ -9,18 +9,46 @@ from api.models import TaskLog
 class Game:
     def __init__(self, project_domain):
         self._project = project_domain
-        self._players = project_domain.project_member_management.members
         self._task_management = project_domain.TaskManagement
+        self._project_member_management = project_domain.project_member_management
+        self._players = self._project_member_management.members
+
         self._boss = None
 
-        self.BASE_BOSS_HP = 10000
+        self.BASE_BOSS_HP = 1000
         self.BASE_PLAYER_DAMAGE = 1000
         self.BASE_BOSS_DAMAGE = 10
 
         self.BASE_SCORE = 0.1
 
+    @property
+    def players(self):
+        # if self._players is not None:
+        #     return self._players
+
+        # self._players = self._project.project_member_management.members
+        return self._players
+    
+    @property
+    def boss(self):
+        if self._boss is not None:
+            return self._boss
+
+        project_boss = (
+            ProjectBoss.objects
+            .filter(project=self._project.project, status="Alive")
+            .order_by("-created_at")
+            .first()
+        )
+
+        if project_boss is None:
+            return None
+
+        self._boss = BossDomain(project_boss)
+        return self._boss
+
     def initail_boss_set_up(self):
-        if ProjectBoss.objects.filter(project=self._project.project, status="Alive").exists():
+        if self.boss:
             raise ValueError("Boss already initialized")
         project_boss_model = ProjectBoss.objects.create(project=self._project.project, boss=None, hp=0, max_hp=0, status="Alive")
         self._boss = BossDomain(project_boss_model)
@@ -67,27 +95,26 @@ class Game:
         """
         player_id : ID of the player who attacks
         task : Task that player use to attack boss (Task domain object)
-        """
-        player = self._players.get_member(player_id)
-        effects = player.effects()
-
+        """       
+        player = self._project_member_management.get_member(player_id)
         if not player :
             raise ValueError("user not exist in this project")
 
         if player.status == "Dead":
             raise ValueError("user is dead")
-
-        
-        if task not in self._task_management.tasks:
+       
+        if task.task_id not in {t.task_id for t in self._task_management.tasks}:
             raise ValueError("Task does not belong to the project")            
 
         if not task.is_completed():
             raise ValueError("Task is not completed")
+        
+        effects = player.effects()
 
         time_left = task.deadline - timezone.now()
         time_left_percent = time_left / (task.deadline - task.created_at) 
         
-        damage = self.BASE_BOSS_DAMAGE * (task.priority /time_left_percent)
+        damage = self.BASE_PLAYER_DAMAGE * (task.priority /time_left_percent)
         # buff or debuff effect
 
         for user_effect in effects:
@@ -99,13 +126,14 @@ class Game:
                 damage = damage - (user_effect.effect.value * damage)
                 # one-time effects are consumed on attack
                 player.clear_effect(user_effect)
+
             
-        self._boss.attacked(damage)
+        self.boss.attacked(damage)
         score = damage * self.BASE_SCORE
-        self.player.score = self.player.score + score
+        player.score = player.score + score
 
         log = TaskLog.objects.create(
-                project_member=player,
+                project_member=player.project_member,
                 project_boss=self._boss.project_boss,
                 action_type="USER",
                 damage_point=damage,
@@ -123,11 +151,12 @@ class Game:
             "player_id": player_id,
             "task_id": task.task_id,
             "damage": damage,
+            "score": score,
             "boss_hp": self._boss.hp,
             "boss_max_hp": self._boss.max_hp
         } 
 
-    def boss_attack(self, task, effect):
+    def boss_attack(self, task):
         """
         task: Task that the boss attacks with (Task domain object)
         effect: Buff or Debuff effect on the attack (Event model object)
@@ -179,8 +208,8 @@ class Game:
         heal_value : amount of health to restore
 
         """
-        player = self._players.get_member(player_id)
-        healer = self._players.get_member(Healer_id)
+        player = self._project_member_management.get_member(player_id)
+        healer = self._project_member_management.get_member(Healer_id)
         if not player :
             raise ValueError("user not exist in this project")
 

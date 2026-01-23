@@ -27,11 +27,11 @@ def get_project_boss(request, project_id):
 
         # Convert domain object to dict for serialization
         boss_data = {
-            "project_boss_id": boss_domain._boss.project_boss_id,
-            "project": boss_domain._boss.project.project_id,
-            "boss": boss_domain._boss.boss.boss_id if boss_domain._boss.boss else None,
-            "boss_name": boss_domain.name if boss_domain._boss.boss else None,
-            "boss_image": boss_domain.image if boss_domain._boss.boss else None,
+            "project_boss_id": boss_domain.project_boss.project_boss_id,
+            "project": boss_domain.project_boss.project.project_id,
+            "boss": boss_domain.boss.boss_id if boss_domain.boss else None,
+            "boss_name": boss_domain.name if boss_domain.boss else None,
+            "boss_image": boss_domain.image if boss_domain.boss else None,
             "hp": boss_domain.hp,
             "max_hp": boss_domain.max_hp,
             "status": boss_domain.status,
@@ -82,6 +82,7 @@ def setup_project_boss(request, project_id):
     Requires project ownership or membership.
 
     Request Body:
+
         {}  # No body required, boss is set up automatically
     """
     try:
@@ -89,9 +90,9 @@ def setup_project_boss(request, project_id):
         boss_domain = service.setup_boss_for_project(project_id)
 
         boss_data = {
-            "project_boss_id": boss_domain._boss.project_boss_id,
-            "project": boss_domain._boss.project.project_id,
-            "boss": boss_domain._boss.boss.boss_id,
+            "project_boss_id": boss_domain.project_boss.project_boss_id,
+            "project": boss_domain.project_boss.project.project_id,
+            "boss": boss_domain.boss.boss_id,
             "boss_name": boss_domain.name,
             "boss_image": boss_domain.image,
             "hp": boss_domain.hp,
@@ -118,46 +119,228 @@ def setup_project_boss(request, project_id):
         )
 
 
-# @api_view(["POST"])
-# @permission_classes([IsAuthenticated])
-# def attack_boss(request, project_id):
-#     """
-#     Attack the project boss, dealing damage.
+# -----------------
+# Game Actions
+# -----------------
 
-#     Request Body:
-#         {
-#             "damage": int  # Amount of damage to deal
-#         }
-#     """
-#     try:
-#         damage = request.data.get("damage")
-#         if damage is None or not isinstance(damage, int) or damage <= 0:
-#             return Response(
-#                 {"error": "Damage must be a positive integer"},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def player_attack(request, project_id):
+    """
+    Player attacks the boss using a completed task.
 
-#         service = GameService()
-#         result = service.attack_boss(project_id, damage)
+    Request Body:
 
-#         return Response(
-#             {
-#                 "message": "Attack successful",
-#                 "damage_dealt": result["damage_dealt"],
-#                 "remaining_hp": result["remaining_hp"],
-#                 "boss_defeated": result["boss_defeated"]
-#             },
-#             status=status.HTTP_200_OK,
-#         )
-#     except ValueError as e:
-#         return Response(
-#             {"error": str(e)},
-#             status=status.HTTP_404_NOT_FOUND,
-#         )
-#     except Exception as e:
-#         return Response(
-#             {"error": str(e)},
-#             status=status.HTTP_400_BAD_REQUEST,
-#         )
+        {
+            "player_id": "uuid",  
+            "task_id": "uuid"     
+        }
+    """
+    try:
+        player_id = request.data.get("player_id")
+        task_id = request.data.get("task_id")
+
+        if not player_id or not task_id:
+            return Response(
+                {"error": "player_id and task_id are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = GameService()
+        result = service.player_attack(project_id, player_id, task_id)
+
+        return Response(
+            {
+                "message": "Player attack successful",
+                "result": result
+            },
+            status=status.HTTP_200_OK,
+        )
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def boss_attack(request, project_id):
+    """
+    Boss attacks players assigned to a task.
+
+    Request Body:
+        {
+            "task_id": "uuid",    # ID of the task whose assigned players will be attacked
+            "effect_id": "uuid"   # Optional effect ID for the attack
+        }
+    """
+    try:
+        task_id = request.data.get("task_id")
+        effect_id = request.data.get("effect_id")
+
+        if not task_id:
+            return Response(
+                {"error": "task_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = GameService()
+        result = service.boss_attack(project_id, task_id, effect_id)
+
+        return Response(
+            {
+                "message": "Boss attack successful",
+                "result": result
+            },
+            status=status.HTTP_200_OK,
+        )
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def player_heal(request, project_id):
+    """
+    Player heals another player.
+
+    Request Body:
+        {
+            "healer_id": "uuid",  # ID of the healing player
+            "player_id": "uuid",  # ID of the player to heal
+            "heal_value": int     # Amount of HP to restore
+        }
+    """
+    try:
+        healer_id = request.data.get("healer_id")
+        player_id = request.data.get("player_id")
+        heal_value = request.data.get("heal_value")
+
+        if not healer_id or not player_id or heal_value is None:
+            return Response(
+                {"error": "healer_id, player_id, and heal_value are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not isinstance(heal_value, int) or heal_value <= 0:
+            return Response(
+                {"error": "heal_value must be a positive integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = GameService()
+        result = service.player_heal(project_id, healer_id, player_id, heal_value)
+
+        return Response(
+            {
+                "message": "Player heal successful",
+                "result": result
+            },
+            status=status.HTTP_200_OK,
+        )
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+# -----------------
+# Real-time Status
+# -----------------
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_boss_status(request, project_id):
+    """
+    Get real-time boss status for a project.
+
+    Returns current HP, max HP, status, and boss information.
+    """
+    try:
+        service = GameService()
+        boss_status = service.get_boss_status(project_id)
+
+        return Response(boss_status, status=status.HTTP_200_OK)
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_statuses(request, project_id):
+    """
+    Get real-time status for all users in a project.
+
+    Returns HP, max HP, score, and status for all project members.
+    """
+    try:
+        service = GameService()
+        user_statuses = service.get_user_statuses(project_id)
+
+        return Response(user_statuses, status=status.HTTP_200_OK)
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_game_status(request, project_id):
+    """
+    Get comprehensive real-time game status including boss and all users.
+
+    Returns combined status information for real-time updates.
+    """
+    try:
+        service = GameService()
+        game_status = service.get_game_status(project_id)
+
+        return Response(game_status, status=status.HTTP_200_OK)
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
 
 

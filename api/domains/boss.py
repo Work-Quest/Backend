@@ -52,11 +52,11 @@ class Boss:
 
     @property
     def name(self):
-        return self._boss.boss.name
+        return self._boss.boss.boss_name
     
     @property
     def image(self):
-        return self._boss.boss.image
+        return self._boss.boss.boss_image
     
     @property
     def updated_at(self):

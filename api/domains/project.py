@@ -1,6 +1,6 @@
 from api.domains.project_member_management import ProjectMemberManagement
 from .task_management import TaskManagement
-
+from .game import Game
 
 
 class Project:
@@ -8,6 +8,7 @@ class Project:
         self._project = project_model
         self._project_member_management = ProjectMemberManagement(project_model)
         self._task_management = TaskManagement(project_model)
+        self._game = Game(self)
 
 
     @property
@@ -17,6 +18,14 @@ class Project:
     @property
     def TaskManagement(self):
         return self._task_management
+    
+    @property
+    def project_member_management(self):
+        return self._project_member_management
+
+    @property
+    def game(self):
+        return self._game
 
     def edit_project_metadata(self, project_data):
         if "project_name" in project_data:
@@ -47,3 +56,9 @@ class Project:
     def check_access(self, user):
         is_member = self._project_member_management.is_member(user)
         return is_member and self._project.status == "Working"
+
+    def setup_boss(self):
+        """
+        Setup the boss for this project using the Game domain
+        """
+        return self._game.initail_boss_set_up()

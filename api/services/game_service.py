@@ -2,7 +2,9 @@
 from django.db import transaction
 from api.models.ProjectBoss import ProjectBoss
 from api.models.Project import Project as ProjectModel
+from api.models.Task import Task
 from api.domains.project import Project as ProjectDomain
+from api.domains.task import Task as TaskDomain
 
 class GameService:
 
@@ -13,7 +15,7 @@ class GameService:
         try:
             project = ProjectModel.objects.get(project_id=project_id)
             domain = ProjectDomain(project)
-            return domain._boss
+            return domain.game.boss
         except ProjectModel.DoesNotExist:
             raise ValueError("Project not found")
 
@@ -24,41 +26,116 @@ class GameService:
         try:
             project = ProjectModel.objects.get(project_id=project_id)
             domain = ProjectDomain(project)
-            domain.setup_boss()
-            return domain._boss
+            return domain.setup_boss()
         except ProjectModel.DoesNotExist:
             raise ValueError("Project not found")
 
-    # def get_all_bosses(self):
-    #     """
-    #     Get all available bosses from the database
-    #     """
-    #     from api.models.Boss import Boss
-    #     return list(Boss.objects.all())
+    def player_attack(self, project_id, player_id, task_id):
+        """
+        Player attacks the boss using a completed task
+        """
+        try:
+            project = ProjectModel.objects.get(project_id=project_id)
+            domain = ProjectDomain(project)
+            task = domain.TaskManagement.get_task(task_id)
+            print("DEBUG task in service.py:", task.task_id, type(task))
+            if not task:
+                raise ValueError("Task not found")
+            return domain.game.player_attack(player_id, task)
+        except ProjectModel.DoesNotExist:
+            raise ValueError("Project not found")
 
-    # def attack_boss(self, project_id, damage):
-    #     """
-    #     Deal damage to the project boss
-    #     """
-    #     try:
-    #         project = ProjectModel.objects.get(project_id=project_id)
-    #         domain = ProjectDomain(project)
+    def boss_attack(self, project_id, task_id, effect=None):
+        """
+        Boss attacks players assigned to a task
+        """
+        try:
+            project = ProjectModel.objects.get(project_id=project_id)
+            domain = ProjectDomain(project)
+            task = domain.TaskManagement.get_task(task_id)
+            if not task:
+                raise ValueError("Task not found")
+            return domain.game.boss_attack(task, effect)
+        except ProjectModel.DoesNotExist:
+            raise ValueError("Project not found")
 
-    #         current_hp = domain._boss.hp
-    #         new_hp = max(0, current_hp - damage)
+    def player_heal(self, project_id, healer_id, player_id, heal_value):
+        """
+        Player heals another player
+        """
+        try:
+            project = ProjectModel.objects.get(project_id=project_id)
+            domain = ProjectDomain(project)
+            return domain.game.player_heal(healer_id, player_id, heal_value)
+        except ProjectModel.DoesNotExist:
+            raise ValueError("Project not found")
 
-    #         domain._boss.hp = new_hp
+    def get_boss_status(self, project_id):
+        """
+        Get real-time boss status for a project
+        """
+        try:
+            project = ProjectModel.objects.get(project_id=project_id)
+            domain = ProjectDomain(project)
+            boss = domain.game.boss
 
-    #         # Check if boss is defeated
-    #         if new_hp <= 0:
-    #             domain._boss.status = False  # Assuming status is boolean for alive/dead
+            return {
+                "project_boss_id": boss.project_boss.project_boss_id,
+                "project_id": project.project_id,
+                "boss_id": boss.boss.boss_id if boss.boss else None,
+                "boss_name": boss.name if boss.boss else None,
+                "boss_image": boss.image if boss.boss else None,
+                "hp": boss.hp,
+                "max_hp": boss.max_hp,
+                "status": boss.status,
+                "updated_at": boss.updated_at
+            }
+        except ProjectModel.DoesNotExist:
+            raise ValueError("Project not found")
 
-    #         return {
-    #             "damage_dealt": damage,
-    #             "remaining_hp": new_hp,
-    #             "boss_defeated": new_hp <= 0
-    #         }
-    #     except ProjectModel.DoesNotExist:
-    #         raise ValueError("Project not found")
+    def get_user_statuses(self, project_id):
+        """
+        Get real-time status for all users in a project
+        """
+        try:
+            project = ProjectModel.objects.get(project_id=project_id)
+            domain = ProjectDomain(project)
+            members = domain.project_member_management.members
+
+            user_statuses = []
+            for member in members:
+                user_statuses.append({
+                    "project_member_id": member.project_member_id,
+                    "user_id": member.user.user_id,
+                    "username": member.user.auth_user.username,
+                    "hp": member.hp,
+                    "max_hp": member.max_hp,
+                    "score": member.score,
+                    "status": member.status
+                })
+
+            return {
+                "project_id": project.project_id,
+                "user_statuses": user_statuses
+            }
+        except ProjectModel.DoesNotExist:
+            raise ValueError("Project not found")
+
+    def get_game_status(self, project_id):
+        """
+        Get comprehensive real-time game status including boss and all users
+        """
+        try:
+            boss_status = self.get_boss_status(project_id)
+            user_statuses = self.get_user_statuses(project_id)
+
+            return {
+                "project_id": project_id,
+                "boss_status": boss_status,
+                "user_statuses": user_statuses["user_statuses"]
+            }
+        except ValueError as e:
+            raise ValueError(str(e))
+
 
 

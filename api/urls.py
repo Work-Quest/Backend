@@ -34,8 +34,13 @@ urlpatterns = [
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/assign/", task_assign, name="task_assign"),
     path("project/<uuid:project_id>/tasks/<uuid:task_id>/unassign/", task_unassign, name="task_unassign"),
     # ----- Game URLs -----
-    path("game/bosses/", get_all_bosses, name="get_all_bosses"),
+    # path("game/bosses/", get_all_bosses, name="get_all_bosses"),
     path("game/project/<uuid:project_id>/boss/", get_project_boss, name="get_project_boss"),
     path("game/project/<uuid:project_id>/boss/setup/", setup_project_boss, name="setup_project_boss"),
-    # path("game/project/<uuid:project_id>/boss/attack/", attack_boss, name="attack_boss"),
+    path("game/project/<uuid:project_id>/boss/status/", get_boss_status, name="get_boss_status"),
+    path("game/project/<uuid:project_id>/boss/attack/", boss_attack, name="boss_attack"),
+    path("game/project/<uuid:project_id>/project_member/attack/", player_attack, name="player_attack"),
+    path("game/project/<uuid:project_id>/project_member/heal/", player_heal, name="player_heal"),
+    path("game/project/<uuid:project_id>/project_member/get_all_status", get_user_statuses, name="get_user_statuses"),
+    path("game/project/<uuid:project_id>/status/", get_game_status, name="get_game_status"),
 ]
