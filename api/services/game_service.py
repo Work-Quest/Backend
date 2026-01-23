@@ -45,7 +45,7 @@ class GameService:
         except ProjectModel.DoesNotExist:
             raise ValueError("Project not found")
 
-    def boss_attack(self, project_id, task_id, effect=None):
+    def boss_attack(self, project_id, task_id):
         """
         Boss attacks players assigned to a task
         """
@@ -55,7 +55,7 @@ class GameService:
             task = domain.TaskManagement.get_task(task_id)
             if not task:
                 raise ValueError("Task not found")
-            return domain.game.boss_attack(task, effect)
+            return domain.game.boss_attack(task)
         except ProjectModel.DoesNotExist:
             raise ValueError("Project not found")
 
@@ -88,6 +88,7 @@ class GameService:
                 "hp": boss.hp,
                 "max_hp": boss.max_hp,
                 "status": boss.status,
+                "pharse": boss.phrase,
                 "updated_at": boss.updated_at
             }
         except ProjectModel.DoesNotExist:
@@ -136,6 +137,7 @@ class GameService:
             }
         except ValueError as e:
             raise ValueError(str(e))
+
 
 
 

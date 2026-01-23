@@ -25,7 +25,7 @@ class TaskManagement:
     def get_all_tasks(self):
         return Task.objects.filter(project=self.project)
 
-    def create_task(self, task_data):
+    def create_task(self, task_data, user):
         new_task = Task.objects.create(
             project=self.project,
             priority=task_data.get("priority", 0),
@@ -38,6 +38,16 @@ class TaskManagement:
         self._tasks = None
         self.project.total_tasks += 1
         self.project.save()
+
+        project_member = ProjectMember.objects.get(
+                        user=user, project=self.project)
+
+        log = TaskLog.objects.create(
+            project_member=project_member,
+            task=new_task,
+            action_type="USER",
+            event="TASK_CREATED"
+        )   
         return new_task_domain
 
     def get_task(self, task_id):
@@ -86,18 +96,19 @@ class TaskManagement:
 
             EVENT = "TASK_COMPLETED"
         
-        project_member = task.get_project_member()
+        project_member = task.get_assigned_members()
         # get current user if not assigned, assign to user making the move
         if not project_member:
-            project_member = ProjectMember.objects.get(
-                user_id=user.user_id)
+            project_member = list(ProjectMember.objects.get(
+                user=user, project=self.project))
 
-        log = TaskLog.objects.create(
-            project_member=task.get_project_member(),
-            task=task._task,
-            action_type="USER",
-            event=EVENT
-        )   
+        for i in project_member:
+            log = TaskLog.objects.create(
+                project_member=i.project_member,
+                task=task._task,
+                action_type="USER",
+                event=EVENT
+            )   
         
         return task
 
@@ -108,8 +119,15 @@ class TaskManagement:
             if not task:
                 return False
             
-            project_member = task.get_project_member()
-
+            project_member = ProjectMember.objects.get( user=user, project=self.project)
+        
+            log = TaskLog.objects.create(
+                task_priority_snapshot=task.priority,
+                project_member=project_member,
+                action_type="USER",
+                event="TASK_DELETED"
+            )   
+            
             # delete any UserTask assignments that reference this task
             UserTask.objects.filter(task=task._task).delete()
 
@@ -124,16 +142,6 @@ class TaskManagement:
             except Exception:
                 # ensure deletion isn't blocked by count update failures
                 pass
-
-            if not project_member:
-                project_member = ProjectMember.objects.get(
-                    user_id=user.user_id)
-
-            log = TaskLog.objects.create(
-                project_member=project_member,
-                action_type="USER",
-                event="TASK_DELETED"
-            )   
 
             return True
 
@@ -151,7 +159,7 @@ class TaskManagement:
 
 
             assigned_project_member = ProjectMember.objects.get(
-                user_id=user.user_id)
+                user=user, project=self.project)
 
             log = TaskLog.objects.create(
                 project_member=assigned_project_member,
@@ -174,11 +182,12 @@ class TaskManagement:
                 task=task_domain._task
             ).delete()
 
-            assigned_project_member = ProjectMember.objects.get(
-                user_id=user.user_id)
+            unassigned_project_member = ProjectMember.objects.get(
+                user=user, project=self.project)
+
 
             log = TaskLog.objects.create(
-                project_member=assigned_project_member,
+                project_member=unassigned_project_member,
                 task=task_domain._task,
                 action_type="USER",
                 event="UNASSIGN_USER"

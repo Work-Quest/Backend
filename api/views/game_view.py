@@ -35,6 +35,7 @@ def get_project_boss(request, project_id):
             "hp": boss_domain.hp,
             "max_hp": boss_domain.max_hp,
             "status": boss_domain.status,
+            "pharse" : boss_domain.phrase
         }
 
         return Response(boss_data, status=status.HTTP_200_OK)
@@ -175,15 +176,13 @@ def boss_attack(request, project_id):
     Boss attacks players assigned to a task.
 
     Request Body:
+
         {
-            "task_id": "uuid",    # ID of the task whose assigned players will be attacked
-            "effect_id": "uuid"   # Optional effect ID for the attack
+            "task_id": "uuid"
         }
     """
     try:
         task_id = request.data.get("task_id")
-        effect_id = request.data.get("effect_id")
-
         if not task_id:
             return Response(
                 {"error": "task_id is required"},
@@ -191,7 +190,7 @@ def boss_attack(request, project_id):
             )
 
         service = GameService()
-        result = service.boss_attack(project_id, task_id, effect_id)
+        result = service.boss_attack(project_id, task_id)
 
         return Response(
             {
@@ -341,6 +340,7 @@ def get_game_status(request, project_id):
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
 
 
 

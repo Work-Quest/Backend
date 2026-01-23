@@ -23,10 +23,6 @@ class Game:
 
     @property
     def players(self):
-        # if self._players is not None:
-        #     return self._players
-
-        # self._players = self._project.project_member_management.members
         return self._players
     
     @property
@@ -36,14 +32,13 @@ class Game:
 
         project_boss = (
             ProjectBoss.objects
-            .filter(project=self._project.project, status="Alive")
+            .filter(project=self._project.project)
             .order_by("-created_at")
-            .first()
+            .last()
         )
 
         if project_boss is None:
             return None
-
         self._boss = BossDomain(project_boss)
         return self._boss
 
@@ -59,37 +54,52 @@ class Game:
         all_tasks = self._task_management.tasks
         boss_hp = sum(task.priority for task in all_tasks) * self.BASE_BOSS_HP
         self._boss.max_hp = boss_hp
-        self._boss.hp = boss_hp
+        self._boss.full_heal()
         self._boss.updated_at = timezone.now()
         return project_boss_model
 
     def next_phase_boss_setup(self):
         add_log = TaskLog.objects.filter(
-            project_member__project=self._project,
+            project_member__project=self._project.project,
             action_type="USER",
             event="TASK_CREATED",
             created_at__gt=self._boss.updated_at
         )
 
         delete_log = TaskLog.objects.filter(
-            project_member__project=self._project,
+            project_member__project=self._project.project,
             action_type="USER",
             event="TASK_DELETED",
             created_at__gt=self._boss.updated_at
         )
+        
+        print("add_log:", add_log)
 
-        add_value = sum(add_log.Task.priority for add_log in add_log)
-        delete_value = sum(delete_log.Task.priority for delete_log in delete_log)
+        if not add_log:
+            return None
+
+        add_value = sum(log.task.priority for log in add_log)
+        delete_value = sum(log.task_priority_snapshot for log in delete_log)
+        print(add_value)
+        print(delete_value)
         net_change = add_value - delete_value
         hp_change = net_change * self.BASE_BOSS_HP
         
+        if hp_change <= 0:
+            return None
+        
         # set up boss next phase
-        self._boss.max_hp = hp_change
-        self._boss.hp = hp_change
+        self.boss.max_hp = hp_change
+        self.boss.hp = hp_change
+        self.boss.phrase += 1
 
-        self._boss.updated_at = timezone.now()
+        self.boss.updated_at = timezone.now()
 
-        return  self._boss.project_boss
+        return  self.boss.project_boss
+    
+
+    # def special_boss_setup(self, boss: Boss):
+
 
     def player_attack(self, player_id, task):
         """
@@ -127,19 +137,33 @@ class Game:
                 # one-time effects are consumed on attack
                 player.clear_effect(user_effect)
 
-            
-        self.boss.attacked(damage)
         score = damage * self.BASE_SCORE
         player.score = player.score + score
+        damage = 30000
+        self.boss.attacked(damage)
 
         log = TaskLog.objects.create(
                 project_member=player.project_member,
-                project_boss=self._boss.project_boss,
+                project_boss=self.boss.project_boss,
                 action_type="USER",
                 damage_point=damage,
                 score_change=score,
                 event="ATTACK_BOSS"
             )
+        
+        if self.boss.hp <= 0:
+            next_boss = self.next_phase_boss_setup() 
+            if next_boss is None:
+                self.boss.die()
+                log = TaskLog.objects.create(
+                    project_member=player.project_member,
+                    project_boss=self.boss.project_boss,
+                    action_type="USER",
+                    damage_point=damage,
+                    score_change=score,
+                    event="KILL_BOSS"
+                )
+        
         
         # attacklog = UserAttack.object.create(
         #     project_member=player,
@@ -165,7 +189,10 @@ class Game:
         if not target_players:
             raise ValueError("No players assigned to this task")
         
-        damage = self.BASE_DAMAGE * (task.priority)
+        if task.is_completed():
+            raise ValueError("Task is completed")
+        
+        damage = self.BASE_BOSS_DAMAGE * (task.priority)
 
         attacked_players =  []
 
@@ -186,7 +213,7 @@ class Game:
             attacked_players.append({"player_id": player.project_member_id, "damage": damage, "hp": player.hp, "max_hp": player.max_hp  })
         
         log = TaskLog.objects.create(
-                project_boss=self._boss.project_boss,
+                project_boss=self.boss.project_boss,
                 action_type="BOSS",
                 event="ATTACK_PLAYERS",
                 damage_point=damage,

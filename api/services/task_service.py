@@ -16,7 +16,7 @@ class TaskService:
     def create_task(self, task_data):
         if not self._domain.check_access(self._user):
             raise PermissionError("User does not have access to this project.")
-        return self._task_management.create_task(task_data)
+        return self._task_management.create_task(task_data, self._user)
     def get_task(self, task_id):
         if not self._domain.check_access(self._user):
             raise PermissionError("User does not have access to this project.")

@@ -29,6 +29,7 @@ class TaskLog(models.Model):
         GIVE_ITEM = "GIVE_ITEM"
         USE_ITEM = "USE_ITEM"
         HEAL = "HEAL"
+        KILL_BOSS = "KILL_BOSS"
        
 
 
@@ -73,7 +74,7 @@ class TaskLog(models.Model):
         choices=Event.choices,
         default=Event.TASK_CREATED
     )
-
+    task_priority_snapshot = models.IntegerField(null=True, blank=True)
     score_change = models.IntegerField(null=True, blank=True)
     damage_point = models.IntegerField(null=True, blank=True)
 

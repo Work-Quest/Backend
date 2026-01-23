@@ -1,3 +1,5 @@
+import rest_framework
+
 class Boss:
     def __init__(self, boss_model):
         self._boss = boss_model
@@ -18,6 +20,18 @@ class Boss:
     @property
     def status(self) -> bool:
         return self._boss.status
+    @status.setter
+    def status(self, value:str):
+        self._boss.status = value
+        self._boss.save(update_fields=["status"])
+    
+    @property
+    def phrase(self) -> int:
+        return self._boss.phrase
+    @phrase.setter
+    def phrase(self, value: int):
+        self._boss.phrase = value
+        self._boss.save(update_fields=["phrase"])  
 
     @hp.setter
     def hp(self, value: int):
@@ -72,3 +86,11 @@ class Boss:
         if new_hp < 0:
             new_hp = 0
         self.hp = new_hp
+
+    def full_heal(self):
+        self.hp = self.max_hp
+
+    def die(self):
+        self.status = "Dead"
+        self.hp = 0
+        self._boss.save(update_fields=["status", "hp"])

@@ -1,4 +1,4 @@
-from api.models.ProjectMember import ProjectMember
+from api.domains.project_member import ProjectMember
 from api.models import UserTask
 
 
@@ -72,12 +72,6 @@ class Task:
 
     def save(self):
         self._task.save()
-
-    def get_project_member(self):
-        user_task = UserTask.objects.get(
-            task=self._task
-        )
-        return ProjectMember(user_task.project_member)
     
     def get_assigned_members(self):
         user_tasks = UserTask.objects.filter(
@@ -87,6 +81,7 @@ class Task:
     
     def is_completed(self):
         return self._task.status == "done"
+
 
 
 
