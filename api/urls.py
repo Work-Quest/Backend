@@ -3,6 +3,7 @@ from django.urls import path
 from api.views import *
 from api.views.task_view import *
 from api.views.game_view import *
+from api.views.log_view import *
 import rest_framework.decorators
 
 urlpatterns = [
@@ -37,10 +38,14 @@ urlpatterns = [
     # path("game/bosses/", get_all_bosses, name="get_all_bosses"),
     path("game/project/<uuid:project_id>/boss/", get_project_boss, name="get_project_boss"),
     path("game/project/<uuid:project_id>/boss/setup/", setup_project_boss, name="setup_project_boss"),
+    path("game/project/<uuid:project_id>/boss/setup/special/", setup_special_boss, name="setup_special_boss"),
     path("game/project/<uuid:project_id>/boss/status/", get_boss_status, name="get_boss_status"),
     path("game/project/<uuid:project_id>/boss/attack/", boss_attack, name="boss_attack"),
     path("game/project/<uuid:project_id>/project_member/attack/", player_attack, name="player_attack"),
     path("game/project/<uuid:project_id>/project_member/heal/", player_heal, name="player_heal"),
-    path("game/project/<uuid:project_id>/project_member/get_all_status", get_user_statuses, name="get_user_statuses"),
+    path("game/project/<uuid:project_id>/project_member/revive/", revive, name="palyer_revive"),
+    path("game/project/<uuid:project_id>/project_member/get_all_status/", get_user_statuses, name="get_user_statuses"),
     path("game/project/<uuid:project_id>/status/", get_game_status, name="get_game_status"),
+    # ----- Log URLs -----
+    path("project/<uuid:project_id>/logs/game/", get_project_logs, name="get_project_logs"),
 ]

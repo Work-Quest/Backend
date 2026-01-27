@@ -342,5 +342,92 @@ def get_game_status(request, project_id):
         )
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def setup_special_boss(request, project_id):
+    """
+    Setup special boss for a project.
+
+    Request Body:
+
+        {}  # No body required
+    """
+    try:
+        service = GameService()
+        project_boss_model = service.setup_special_boss(project_id)
+
+        boss_data = {
+            "project_boss_id": project_boss_model.project_boss_id,
+            "project": project_boss_model.project.project_id,
+            "boss": project_boss_model.boss.boss_id if project_boss_model.boss else None,
+            "boss_name": project_boss_model.boss.boss_name if project_boss_model.boss else None,
+            "boss_image": project_boss_model.boss.boss_image if project_boss_model.boss else None,
+            "hp": project_boss_model.hp,
+            "max_hp": project_boss_model.max_hp,
+            "status": project_boss_model.status,
+        }
+
+        return Response(
+            {
+                "message": "Special boss setup completed successfully",
+                "boss": boss_data
+            },
+            status=status.HTTP_200_OK,
+        )
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def revive(request, project_id):
+    """
+    Revive a dead player in a project.
+
+    Request Body:
+
+        {
+            "player_id": "uuid"
+        }
+    """
+    try:
+        player_id = request.data.get("player_id")
+
+        if not project_id or not player_id:
+            return Response(
+                {"error": "project_id and player_id are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = GameService()
+        service.revive_player(project_id, player_id)
+
+        return Response(
+            {
+                "message": "Player revived successfully"
+            },
+            status=status.HTTP_200_OK,
+        )
+    except ValueError as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+
 
 

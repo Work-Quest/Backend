@@ -30,6 +30,7 @@ class TaskLog(models.Model):
         USE_ITEM = "USE_ITEM"
         HEAL = "HEAL"
         KILL_BOSS = "KILL_BOSS"
+        KILL_PLAYER = "KILL_PLAYER"
        
 
 

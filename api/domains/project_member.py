@@ -98,4 +98,7 @@ class ProjectMember:
             new_hp = self.max_hp
         self.hp = new_hp
 
+    def die(self):
+        self.status = "Dead"
+        self.hp = 0
   

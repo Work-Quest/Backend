@@ -138,6 +138,29 @@ class GameService:
         except ValueError as e:
             raise ValueError(str(e))
 
+    def setup_special_boss(self, project_id):
+        """
+        Setup special boss for a project
+        """
+        try:
+            project = ProjectModel.objects.get(project_id=project_id)
+            domain = ProjectDomain(project)
+            return domain.game.special_boss_setup()
+        except ProjectModel.DoesNotExist:
+            raise ValueError("Project not found")
+
+    def revive_player(self, project_id, player_id):
+        """
+        Revive a dead player in a project
+        """
+        try:
+            project = ProjectModel.objects.get(project_id=project_id)
+            domain = ProjectDomain(project)
+            return domain.game.player_revive(player_id)
+        except ProjectModel.DoesNotExist:
+            raise ValueError("Project not found")
+
+
 
 
 

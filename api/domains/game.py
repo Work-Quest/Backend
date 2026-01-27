@@ -1,6 +1,7 @@
 from api.models.ProjectBoss import ProjectBoss
 from api.domains.boss import Boss as BossDomain
 from api.models.Boss import Boss
+import datetime
 import random
 from django.utils import timezone
 from api.models import TaskLog
@@ -20,6 +21,7 @@ class Game:
         self.BASE_BOSS_DAMAGE = 10
 
         self.BASE_SCORE = 0.1
+        self.BASE_SPECIAL_BOSS_HP = 5000
 
     @property
     def players(self):
@@ -34,7 +36,7 @@ class Game:
             ProjectBoss.objects
             .filter(project=self._project.project)
             .order_by("-created_at")
-            .last()
+            .first()
         )
 
         if project_boss is None:
@@ -47,7 +49,7 @@ class Game:
             raise ValueError("Boss already initialized")
         project_boss_model = ProjectBoss.objects.create(project=self._project.project, boss=None, hp=0, max_hp=0, status="Alive")
         self._boss = BossDomain(project_boss_model)
-        all_boss = list(Boss.objects.all())
+        all_boss = list(Boss.objects.filter(boss_type="normal"))
         selected_boss = random.choice(all_boss)  
         self._boss.boss = selected_boss
 
@@ -98,7 +100,25 @@ class Game:
         return  self.boss.project_boss
     
 
-    # def special_boss_setup(self, boss: Boss):
+    def special_boss_setup(self):
+        all_boss = Boss.objects.filter(boss_type="Special")
+        # exclude existed boss in case already defeat specail boss once
+        existed_boss_ids = ProjectBoss.objects.filter(
+            project=self._project.project
+        ).values_list("boss_id", flat=True)
+
+        available_bosses = all_boss
+        if existed_boss_ids:
+            available_bosses = all_boss.exclude(
+                    boss_id__in=existed_boss_ids
+                )
+            
+        selected_boss = random.choice(available_bosses)  
+
+        project_boss_model = ProjectBoss.objects.create(project=self._project.project, boss=selected_boss, hp=self.BASE_SPECIAL_BOSS_HP, max_hp=self.BASE_SPECIAL_BOSS_HP, status="Alive")
+
+        self._boss = None
+        return project_boss_model
 
 
     def player_attack(self, player_id, task):
@@ -139,7 +159,6 @@ class Game:
 
         score = damage * self.BASE_SCORE
         player.score = player.score + score
-        damage = 30000
         self.boss.attacked(damage)
 
         log = TaskLog.objects.create(
@@ -152,8 +171,19 @@ class Game:
             )
         
         if self.boss.hp <= 0:
-            next_boss = self.next_phase_boss_setup() 
-            if next_boss is None:
+            if self.boss.type == "normal":
+                next_boss = self.next_phase_boss_setup() 
+                if next_boss is None:
+                    self.boss.die()
+                    log = TaskLog.objects.create(
+                        project_member=player.project_member,
+                        project_boss=self.boss.project_boss,
+                        action_type="USER",
+                        damage_point=damage,
+                        score_change=score,
+                        event="KILL_BOSS"
+                    )
+            else:
                 self.boss.die()
                 log = TaskLog.objects.create(
                     project_member=player.project_member,
@@ -211,13 +241,25 @@ class Game:
                     player.clear_effect(user_effect)
             player.attacked(damage)
             attacked_players.append({"player_id": player.project_member_id, "damage": damage, "hp": player.hp, "max_hp": player.max_hp  })
-        
-        log = TaskLog.objects.create(
+            attack_log = TaskLog.objects.create(
                 project_boss=self.boss.project_boss,
+                project_member=player.project_member,
                 action_type="BOSS",
-                event="ATTACK_PLAYERS",
+                event="ATTACK_PLAYER",
                 damage_point=damage,
             )
+
+            if player.hp <= 0 :
+                player.die()
+                kill_log = TaskLog.objects.create(
+                    project_boss=self.boss.project_boss,
+                    project_member=player.project_member,
+                    action_type="BOSS",
+                    event="KILL_PLAYER",
+                    damage_point=damage,
+                )
+    
+        
         # boss_attack_log = BossAttack.objects.create(
         #     project_boss=self._boss.project_boss,
         #     damage_point=damage,
@@ -264,6 +306,15 @@ class Game:
             "hp": player.hp,
             "max_hp": player.max_hp
         }
+    
+    def player_revive(self, player_id):
+        player = self._project_member_management.get_member(player_id)
+        if player.status == "Alive":
+            raise ValueError("player is currently Arrive")
+        player.score = player.score/2
+        player.hp = player.max_hp
+        player.status = "Alive"
+
     
 
 
