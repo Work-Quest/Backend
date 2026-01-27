@@ -45,20 +45,31 @@ class Game:
         return self._boss
 
     def initail_boss_set_up(self):
-        if self.boss:
+        existing = self.boss
+        if existing is not None and existing.boss is not None:
             raise ValueError("Boss already initialized")
+            
         project_boss_model = ProjectBoss.objects.create(project=self._project.project, boss=None, hp=0, max_hp=0, status="Alive")
         self._boss = BossDomain(project_boss_model)
-        all_boss = list(Boss.objects.filter(boss_type="normal"))
-        selected_boss = random.choice(all_boss)  
+
+        # Boss.boss_type choices are "Normal" / "Special" (see api.models.Boss)
+        all_boss = list(Boss.objects.filter(boss_type="Normal"))
+        if not all_boss:
+            raise ValueError('No "Normal" bosses configured in the database')
+        selected_boss = random.choice(all_boss)
         self._boss.boss = selected_boss
 
         all_tasks = self._task_management.tasks
-        boss_hp = sum(task.priority for task in all_tasks) * self.BASE_BOSS_HP
+        if not all_tasks:
+            raise ValueError("Cannot setup boss: project has no tasks")
+        total_priority = sum(task.priority for task in all_tasks)
+        if total_priority <= 0:
+            raise ValueError("Cannot setup boss: total task priority must be greater than 0")
+        boss_hp = total_priority * self.BASE_BOSS_HP
         self._boss.max_hp = boss_hp
         self._boss.full_heal()
         self._boss.updated_at = timezone.now()
-        return project_boss_model
+        return self._boss
 
     def next_phase_boss_setup(self):
         add_log = TaskLog.objects.filter(
@@ -112,8 +123,11 @@ class Game:
             available_bosses = all_boss.exclude(
                     boss_id__in=existed_boss_ids
                 )
-            
-        selected_boss = random.choice(available_bosses)  
+
+        available_bosses_list = list(available_bosses)
+        if not available_bosses_list:
+            raise ValueError('No "Special" bosses available to choose (all already used or none configured)')
+        selected_boss = random.choice(available_bosses_list)
 
         project_boss_model = ProjectBoss.objects.create(project=self._project.project, boss=selected_boss, hp=self.BASE_SPECIAL_BOSS_HP, max_hp=self.BASE_SPECIAL_BOSS_HP, status="Alive")
 
