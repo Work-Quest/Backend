@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from api.models import BusinessUser, Project
 from api.services.log_service import TaskLogQueryService
 from api.domains.project import Project as ProjectDomain
+from api.services.cache_service import CacheService
 
 
 @api_view(["GET"])
@@ -31,21 +32,26 @@ def get_project_logs(request, project_id):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        log_service = TaskLogQueryService()
-        # get_game_logs includes logs related to the project through tasks, project_members, or project_bosses
-        logs = log_service.get_game_logs(project_id)
+        cache_svc = CacheService()
 
-        # Convert DTOs to dictionaries using asdict
-        logs_data = [asdict(log) for log in logs]
-
-        return Response(
-            {
+        def _load() -> dict:
+            log_service = TaskLogQueryService()
+            # get_game_logs includes logs related to the project through tasks, project_members, or project_bosses
+            logs = log_service.get_game_logs(project_id)
+            logs_data = [asdict(log) for log in logs]
+            return {
                 "project_id": str(project_id),
                 "logs": logs_data,
-                "count": len(logs_data)
-            },
-            status=status.HTTP_200_OK,
+                "count": len(logs_data),
+            }
+
+        payload = cache_svc.read_through(
+            key=cache_svc.keys.project_game_logs(project_id),
+            ttl_seconds=5,
+            loader=_load,
         )
+
+        return Response(payload, status=status.HTTP_200_OK)
     except Project.DoesNotExist:
         return Response(
             {"error": "Project not found"},

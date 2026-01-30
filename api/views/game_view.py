@@ -8,6 +8,7 @@ from rest_framework import status
 from api.models import BusinessUser
 from api.services.game_service import GameService
 from api.serializers.game_serializer import BossSerializer, ProjectBossSerializer
+from api.services.cache_service import CacheService
 
 # -------------------------
 # Boss Query
@@ -101,6 +102,9 @@ def setup_project_boss(request, project_id):
             "status": boss_domain.status,
         }
 
+        CacheService().invalidate_project_game(project_id)
+        CacheService().invalidate_project_logs(project_id)
+
         return Response(
             {
                 "message": "Boss setup completed successfully",
@@ -150,6 +154,9 @@ def player_attack(request, project_id):
         service = GameService()
         result = service.player_attack(project_id, player_id, task_id)
 
+        CacheService().invalidate_project_game(project_id)
+        CacheService().invalidate_project_logs(project_id)
+
         return Response(
             {
                 "message": "Player attack successful",
@@ -191,6 +198,9 @@ def boss_attack(request, project_id):
 
         service = GameService()
         result = service.boss_attack(project_id, task_id)
+
+        CacheService().invalidate_project_game(project_id)
+        CacheService().invalidate_project_logs(project_id)
 
         return Response(
             {
@@ -244,6 +254,9 @@ def player_heal(request, project_id):
         service = GameService()
         result = service.player_heal(project_id, healer_id, player_id, heal_value)
 
+        CacheService().invalidate_project_game(project_id)
+        CacheService().invalidate_project_logs(project_id)
+
         return Response(
             {
                 "message": "Player heal successful",
@@ -277,7 +290,12 @@ def get_boss_status(request, project_id):
     """
     try:
         service = GameService()
-        boss_status = service.get_boss_status(project_id)
+        cache_svc = CacheService()
+        boss_status = cache_svc.read_through(
+            key=cache_svc.keys.boss_status(project_id),
+            ttl_seconds=5,
+            loader=lambda: service.get_boss_status(project_id),
+        )
 
         return Response(boss_status, status=status.HTTP_200_OK)
     except ValueError as e:
@@ -302,7 +320,12 @@ def get_user_statuses(request, project_id):
     """
     try:
         service = GameService()
-        user_statuses = service.get_user_statuses(project_id)
+        cache_svc = CacheService()
+        user_statuses = cache_svc.read_through(
+            key=cache_svc.keys.user_statuses(project_id),
+            ttl_seconds=3,
+            loader=lambda: service.get_user_statuses(project_id),
+        )
 
         return Response(user_statuses, status=status.HTTP_200_OK)
     except ValueError as e:
@@ -327,7 +350,12 @@ def get_game_status(request, project_id):
     """
     try:
         service = GameService()
-        game_status = service.get_game_status(project_id)
+        cache_svc = CacheService()
+        game_status = cache_svc.read_through(
+            key=cache_svc.keys.game_status(project_id),
+            ttl_seconds=3,
+            loader=lambda: service.get_game_status(project_id),
+        )
 
         return Response(game_status, status=status.HTTP_200_OK)
     except ValueError as e:
@@ -366,6 +394,9 @@ def setup_special_boss(request, project_id):
             "max_hp": project_boss_model.max_hp,
             "status": project_boss_model.status,
         }
+
+        CacheService().invalidate_project_game(project_id)
+        CacheService().invalidate_project_logs(project_id)
 
         return Response(
             {
@@ -409,6 +440,9 @@ def revive(request, project_id):
 
         service = GameService()
         service.revive_player(project_id, player_id)
+
+        CacheService().invalidate_project_game(project_id)
+        CacheService().invalidate_project_logs(project_id)
 
         return Response(
             {
