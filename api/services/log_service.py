@@ -1,20 +1,7 @@
 from django.db.models import QuerySet
 from api.dtos.log_dto import GameLogReadDTO
 from api.models import TaskLog
-from django.db.models import Q
 
-
-GAME_RELEVANT_EVENTS = [
-    "USER_ATTACK",
-    "BOSS_ATTACK",
-    "APPLY_BUFF",
-    "APPLY_DEBUFF",
-    "GIVE_ITEM",
-    "USE_ITEM",
-    "HEAL",
-    "KILL_BOSS",
-    "KILL_PLAYER"
-    ]
 
 class TaskLogQueryService:
     """
@@ -25,24 +12,13 @@ class TaskLogQueryService:
         return TaskLog.objects.select_related(
             "task",
             "task__project",
-            "project_member",
-            "project_member__project",
-            "project_boss",
-            "project_boss__project",
         )
 
-    def get_game_logs(self, project_id) -> list[GameLogReadDTO]:
-        # Get logs that are related to the project through:
-        
+    def get_game_logs(self, project_id: int) -> list[GameLogReadDTO]:
         logs = (
             self._base_queryset()
-            .filter(
-                Q(task__project_id=project_id) |
-                Q(project_member__project_id=project_id) |
-                Q(project_boss__project_id=project_id)
-            )
+            .filter(task__project_id=project_id)
             .order_by("-created_at")
-            .filter(event__in=GAME_RELEVANT_EVENTS)
         )
 
         return [

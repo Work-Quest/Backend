@@ -48,7 +48,7 @@ class Game:
         existing = self.boss
         if existing is not None and existing.boss is not None:
             raise ValueError("Boss already initialized")
-            
+        
         project_boss_model = ProjectBoss.objects.create(project=self._project.project, boss=None, hp=0, max_hp=0, status="Alive")
         self._boss = BossDomain(project_boss_model)
 
