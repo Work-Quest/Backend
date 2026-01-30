@@ -35,8 +35,26 @@ def _env_csv(name: str, default: list[str]) -> list[str]:
         return default
     return [x.strip() for x in val.split(",") if x.strip()]
 
+def _pick_database_url() -> str | None:
+    """
+    DB URL resolution order:
+    1) DATABASE_URL (backwards compatible; also used by docker-compose postgres init)
+    2) DB_ENV selector -> DATABASE_URL_QA / DATABASE_URL_PROD (also supports DB_URL_QA / DB_URL_PROD)
+    3) (none) -> fallback to sqlite
+    """
+    explicit = os.getenv("DATABASE_URL")
+    if explicit:
+        return explicit
 
-db_url = os.getenv("DATABASE_URL")
+    db_env = (os.getenv("DB_ENV") or "").strip().lower()
+    if db_env in {"prod", "production"}:
+        return os.getenv("DATABASE_URL_PROD") or os.getenv("DB_URL_PROD") or None
+    if db_env in {"qa", "staging"}:
+        return os.getenv("DATABASE_URL_QA") or os.getenv("DB_URL_QA") or None
+    return None
+
+
+db_url = _pick_database_url()
 tmpPostgres = urlparse(db_url) if db_url else None
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
