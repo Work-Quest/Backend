@@ -22,19 +22,37 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Replace the DATABASES section of your settings.py with this
-tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
+def _env_bool(name: str, default: bool = False) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return val.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _env_csv(name: str, default: list[str]) -> list[str]:
+    val = os.getenv(name)
+    if not val:
+        return default
+    return [x.strip() for x in val.split(",") if x.strip()]
+
+
+db_url = os.getenv("DATABASE_URL")
+tmpPostgres = urlparse(db_url) if db_url else None
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-!qhz^l=tao%1$($e4c7+6!wapc2ac)lsj3sm9biq+ooer_ylwd'
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-!qhz^l=tao%1$($e4c7+6!wapc2ac)lsj3sm9biq+ooer_ylwd")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _env_bool("DJANGO_DEBUG", default=True)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = _env_csv(
+    "DJANGO_ALLOWED_HOSTS",
+    default=["localhost", "127.0.0.1"],
+)
 
 
 # Application definition
@@ -67,6 +85,7 @@ SIMPLE_JWT = {
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -100,17 +119,45 @@ WSGI_APPLICATION = 'Backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': tmpPostgres.path.replace('/', ''),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': 5432,
-        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+if tmpPostgres:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': tmpPostgres.path.replace('/', ''),
+            'USER': tmpPostgres.username,
+            'PASSWORD': tmpPostgres.password,
+            'HOST': tmpPostgres.hostname,
+            'PORT': 5432,
+            'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+        }
+    }
+else:
+    # Safe fallback so the app can boot without DATABASE_URL (e.g., in dev containers).
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+# Cache (Redis)
+# - In docker-compose, `redis` is the service hostname.
+# - Override with REDIS_URL if needed, e.g. redis://:password@host:6379/0
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "TIMEOUT": int(os.getenv("DJANGO_CACHE_TIMEOUT", "300")),
     }
 }
+
+# Optional: store Django sessions in Redis
+if _env_bool("DJANGO_USE_CACHE_SESSIONS", default=False):
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "default"
 
 
 # Password validation
@@ -133,13 +180,15 @@ AUTH_PASSWORD_VALIDATORS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Allow React app
-]
+CORS_ALLOWED_ORIGINS = _env_csv(
+    "CORS_ALLOWED_ORIGINS",
+    default=["http://localhost:5173"],
+)
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-]
+CSRF_TRUSTED_ORIGINS = _env_csv(
+    "CSRF_TRUSTED_ORIGINS",
+    default=["http://localhost:5173"],
+)
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
@@ -157,6 +206,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Keep it simple: serve collected static files from the same container.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
