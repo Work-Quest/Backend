@@ -67,6 +67,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-!qhz^l=tao%1$($e4c7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DJANGO_DEBUG", default=True)
 
+
 ALLOWED_HOSTS = _env_csv(
     "DJANGO_ALLOWED_HOSTS",
     default=["localhost", "127.0.0.1"],
