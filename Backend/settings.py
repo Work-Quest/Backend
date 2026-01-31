@@ -35,7 +35,7 @@ def _env_csv(name: str, default: list[str]) -> list[str]:
         return default
     return [x.strip() for x in val.split(",") if x.strip()]
 
-def _pick_database_url() -> str | None:
+def _pick_database_url():
     """
     DB URL resolution order:
     1) DATABASE_URL (backwards compatible; also used by docker-compose postgres init)
@@ -86,8 +86,15 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     'api',
     'corsheaders',
+    "anymail",
 ]
 
+EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
+ANYMAIL = {
+    "RESEND_API_KEY": os.environ.get("RESEND_API_KEY"),
+}
+
+DEFAULT_FROM_EMAIL = "onboarding@resend.dev"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
