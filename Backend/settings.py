@@ -35,7 +35,7 @@ def _env_csv(name: str, default: list[str]) -> list[str]:
         return default
     return [x.strip() for x in val.split(",") if x.strip()]
 
-def _pick_database_url() -> str | None:
+def _pick_database_url() -> str:
     """
     DB URL resolution order:
     1) DATABASE_URL (backwards compatible; also used by docker-compose postgres init)
