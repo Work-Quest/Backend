@@ -35,7 +35,7 @@ def _env_csv(name: str, default: list[str]) -> list[str]:
         return default
     return [x.strip() for x in val.split(",") if x.strip()]
 
-def _pick_database_url():
+def _pick_database_url() -> str:
     """
     DB URL resolution order:
     1) DATABASE_URL (backwards compatible; also used by docker-compose postgres init)
@@ -66,6 +66,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-!qhz^l=tao%1$($e4c7
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DJANGO_DEBUG", default=True)
+
 
 ALLOWED_HOSTS = _env_csv(
     "DJANGO_ALLOWED_HOSTS",
