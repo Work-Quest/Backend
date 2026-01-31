@@ -15,6 +15,8 @@ urlpatterns = [
     path("auth/status/", check_auth_status),
     path("auth/refresh/", refresh_token),
     path("me/", me),
+    # ----- User URLs -----
+    path("users/business/", get_all_business_users, name="get_all_business_users"),
     # ----- Project URLs -----
     path("project/create/", create_project, name="create_project"),
     path("project/<uuid:project_id>/edit/", edit_project, name="edit_project"),

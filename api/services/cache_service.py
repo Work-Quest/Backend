@@ -56,6 +56,10 @@ class CacheKeys:
         # wildcard task_id and user_id
         return self.key("task", "task_detail", project_id, "*", "*")
 
+    # ---- Users ----
+    def all_business_users(self) -> str:
+        return self.key("user", "business_users", "all")
+
 
 class CacheService:
     """
@@ -139,5 +143,8 @@ class CacheService:
         # Clear per-user caches for this project's tasks list + task details.
         self.delete_pattern(self.keys.project_tasks_pattern(project_id))
         self.delete_pattern(self.keys.task_detail_pattern(project_id))
+
+    def invalidate_all_business_users(self) -> None:
+        self.delete(self.keys.all_business_users())
 
 

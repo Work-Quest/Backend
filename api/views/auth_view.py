@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from api.services.auth_service import register_user, login_user
 from rest_framework import status
 from api.models import BusinessUser
+from api.services.cache_service import CacheService
 import requests
 import uuid
 
@@ -45,6 +46,9 @@ def register(request):
         name=data["username"],
         profile_img=None,
     )
+
+    # New user changes the global business user list cache.
+    CacheService().invalidate_all_business_users()
 
     return Response({"message": "User registered", "username": user.username, "email" : profile.email})
 
@@ -151,6 +155,8 @@ def google_login(request):
             name=name,
             profile_img=picture,
         )
+        # New user changes the global business user list cache.
+        CacheService().invalidate_all_business_users()
 
     # Log the user in via your login service
     user, tokens = login_user(
