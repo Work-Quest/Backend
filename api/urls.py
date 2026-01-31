@@ -25,6 +25,7 @@ urlpatterns = [
     path("project/member/join/",join_project,name="join_project"),
     path("project/member/leave/",leave_project,name="leave_project"),
     path("project/<uuid:project_id>/invite/", batch_invite, name="batch_invite"),
+    path("project/invite/accept/", accept_invite, name="accept_invite"),
     path("project/<uuid:project_id>/members/",get_all_project_members,name="get_all_project_members"),
     # ----- Task URLs -----
     path("project/<uuid:project_id>/tasks/", task_list, name="task_list"),

@@ -89,15 +89,10 @@ INSTALLED_APPS = [
 ]
 
 # Email (SMTP / Gmail)
-# - Use Gmail with an App Password (recommended) or your SMTP provider of choice.
-# - For dev, you can set EMAIL_PROVIDER=console to print emails to logs.
 EMAIL_PROVIDER = (os.getenv("EMAIL_PROVIDER") or "").strip().lower()
 EMAIL_NOTIFICATIONS_ENABLED = _env_bool("EMAIL_NOTIFICATIONS_ENABLED", default=True)
 
 if not EMAIL_PROVIDER:
-    # Sensible defaults:
-    # - In DEBUG: print emails to console unless SMTP creds are provided
-    # - In non-DEBUG: prefer SMTP
     has_smtp_creds = bool(os.getenv("DJANGO_EMAIL_HOST_USER")) and bool(os.getenv("DJANGO_EMAIL_HOST_PASSWORD"))
     EMAIL_PROVIDER = "smtp" if (has_smtp_creds or not DEBUG) else "console"
 
@@ -113,7 +108,6 @@ if EMAIL_PROVIDER in {"gmail", "smtp"}:
 
     DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL") or EMAIL_HOST_USER or "no-reply@example.com"
 else:
-    # Dev-friendly fallback: prints emails to stdout (docker logs)
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
     DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@localhost")
 
