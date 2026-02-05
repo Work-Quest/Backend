@@ -35,7 +35,8 @@ def _env_csv(name: str, default: list[str]) -> list[str]:
         return default
     return [x.strip() for x in val.split(",") if x.strip()]
 
-def _pick_database_url():
+
+def _pick_database_url() -> str:
     """
     DB URL resolution order:
     1) DATABASE_URL (backwards compatible; also used by docker-compose postgres init)
@@ -66,6 +67,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-!qhz^l=tao%1$($e4c7
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DJANGO_DEBUG", default=True)
+
 
 ALLOWED_HOSTS = _env_csv(
     "DJANGO_ALLOWED_HOSTS",
@@ -229,6 +231,39 @@ CSRF_TRUSTED_ORIGINS = _env_csv(
     "CSRF_TRUSTED_ORIGINS",
     default=["http://localhost:5173"],
 )
+
+# -------------------------
+# Email (notifications)
+# -------------------------
+# Provider selector:
+# - "django": use Django email backend (console/smtp/etc.)
+# - "resend": use Resend HTTP API
+EMAIL_PROVIDER = (os.getenv("EMAIL_PROVIDER", "django") or "django").strip().lower()
+
+# Default to console backend so dev doesn't need SMTP credentials.
+EMAIL_BACKEND = os.getenv(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("DJANGO_EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = _env_bool("DJANGO_EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = _env_bool("DJANGO_EMAIL_USE_SSL", default=False)
+DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@workquest.local")
+
+# App-level toggle so we can keep email off in most environments by default.
+EMAIL_NOTIFICATIONS_ENABLED = _env_bool("EMAIL_NOTIFICATIONS_ENABLED", default=False)
+
+# Resend (https://resend.com/)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "")
+RESEND_BASE_URL = os.getenv("RESEND_BASE_URL", "https://api.resend.com")
+RESEND_TIMEOUT_SECONDS = int(os.getenv("RESEND_TIMEOUT_SECONDS", "10"))
+
+# Used to generate links inside emails (optional).
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
