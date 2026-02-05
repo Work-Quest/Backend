@@ -35,7 +35,9 @@ def get_project_boss(request, project_id):
             "hp": boss_domain.hp,
             "max_hp": boss_domain.max_hp,
             "status": boss_domain.status,
-            "pharse" : boss_domain.phrase
+            "phase": boss_domain.phase,
+            # Backward-compatible key (typo): prefer `phase`
+            "pharse": boss_domain.phase,
         }
 
         return Response(boss_data, status=status.HTTP_200_OK)
