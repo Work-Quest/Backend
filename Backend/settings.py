@@ -22,19 +22,56 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Replace the DATABASES section of your settings.py with this
-tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
+def _env_bool(name: str, default: bool = False) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return val.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _env_csv(name: str, default: list[str]) -> list[str]:
+    val = os.getenv(name)
+    if not val:
+        return default
+    return [x.strip() for x in val.split(",") if x.strip()]
+
+def _pick_database_url() -> str:
+    """
+    DB URL resolution order:
+    1) DATABASE_URL (backwards compatible; also used by docker-compose postgres init)
+    2) DB_ENV selector -> DATABASE_URL_QA / DATABASE_URL_PROD (also supports DB_URL_QA / DB_URL_PROD)
+    3) (none) -> fallback to sqlite
+    """
+    explicit = os.getenv("DATABASE_URL")
+    if explicit:
+        return explicit
+
+    db_env = (os.getenv("DB_ENV") or "").strip().lower()
+    if db_env in {"prod", "production"}:
+        return os.getenv("DATABASE_URL_PROD") or os.getenv("DB_URL_PROD") or None
+    if db_env in {"qa", "staging"}:
+        return os.getenv("DATABASE_URL_QA") or os.getenv("DB_URL_QA") or None
+    return None
+
+
+db_url = _pick_database_url()
+tmpPostgres = urlparse(db_url) if db_url else None
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-!qhz^l=tao%1$($e4c7+6!wapc2ac)lsj3sm9biq+ooer_ylwd'
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-!qhz^l=tao%1$($e4c7+6!wapc2ac)lsj3sm9biq+ooer_ylwd")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _env_bool("DJANGO_DEBUG", default=True)
 
-ALLOWED_HOSTS = ['worquest-backend.onrender.com']
+
+ALLOWED_HOSTS = _env_csv(
+    "DJANGO_ALLOWED_HOSTS",
+    default=["localhost", "127.0.0.1"],
+)
 
 
 # Application definition
@@ -67,6 +104,7 @@ SIMPLE_JWT = {
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -100,17 +138,45 @@ WSGI_APPLICATION = 'Backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': tmpPostgres.path.replace('/', ''),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': 5432,
-        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+if tmpPostgres:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': tmpPostgres.path.replace('/', ''),
+            'USER': tmpPostgres.username,
+            'PASSWORD': tmpPostgres.password,
+            'HOST': tmpPostgres.hostname,
+            'PORT': 5432,
+            'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+        }
+    }
+else:
+    # Safe fallback so the app can boot without DATABASE_URL (e.g., in dev containers).
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+# Cache (Redis)
+# - In docker-compose, `redis` is the service hostname.
+# - Override with REDIS_URL if needed, e.g. redis://:password@host:6379/0
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "TIMEOUT": int(os.getenv("DJANGO_CACHE_TIMEOUT", "300")),
     }
 }
+
+# Optional: store Django sessions in Redis
+if _env_bool("DJANGO_USE_CACHE_SESSIONS", default=False):
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "default"
 
 
 # Password validation
@@ -133,13 +199,48 @@ AUTH_PASSWORD_VALIDATORS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Allow React app
-]
+CORS_ALLOWED_ORIGINS = _env_csv(
+    "CORS_ALLOWED_ORIGINS",
+    default=["http://localhost:5173"],
+)
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-]
+CSRF_TRUSTED_ORIGINS = _env_csv(
+    "CSRF_TRUSTED_ORIGINS",
+    default=["http://localhost:5173"],
+)
+
+# -------------------------
+# Email (notifications)
+# -------------------------
+# Provider selector:
+# - "django": use Django email backend (console/smtp/etc.)
+# - "resend": use Resend HTTP API
+EMAIL_PROVIDER = (os.getenv("EMAIL_PROVIDER", "django") or "django").strip().lower()
+
+# Default to console backend so dev doesn't need SMTP credentials.
+EMAIL_BACKEND = os.getenv(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("DJANGO_EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = _env_bool("DJANGO_EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = _env_bool("DJANGO_EMAIL_USE_SSL", default=False)
+DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@workquest.local")
+
+# App-level toggle so we can keep email off in most environments by default.
+EMAIL_NOTIFICATIONS_ENABLED = _env_bool("EMAIL_NOTIFICATIONS_ENABLED", default=False)
+
+# Resend (https://resend.com/)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "")
+RESEND_BASE_URL = os.getenv("RESEND_BASE_URL", "https://api.resend.com")
+RESEND_TIMEOUT_SECONDS = int(os.getenv("RESEND_TIMEOUT_SECONDS", "10"))
+
+# Used to generate links inside emails (optional).
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
@@ -157,6 +258,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Keep it simple: serve collected static files from the same container.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

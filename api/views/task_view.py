@@ -1,23 +1,34 @@
 # views/task.py
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from api.services.task_service import TaskService
 from api.serializers.task_serializer import TaskRequestSerializer, TaskResponseSerializer
+from api.models import BusinessUser
+from api.services.cache_service import CacheService
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def task_list(request, project_id):
     """
     Retrieve all tasks for a specific project.
     """
-    task_service = TaskService(project_id)
-    tasks = task_service.get_all_tasks()
-    serializer = TaskResponseSerializer(tasks, many=True)
-    return Response(serializer.data)
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    task_service = TaskService(project_id, user)
+    cache_svc = CacheService()
+    data = cache_svc.read_through(
+        key=cache_svc.keys.project_tasks(project_id, user.user_id),
+        ttl_seconds=15,
+        loader=lambda: list(TaskResponseSerializer(task_service.get_all_tasks(), many=True).data),
+    )
+    return Response(data)
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def task_create(request, project_id):
     """
     Create a new task for a specific project.
@@ -33,31 +44,49 @@ def task_create(request, project_id):
     """
     print("requser:",request.data)
 
-    task_service = TaskService(project_id)
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    task_service = TaskService(project_id, user)
     serializer = TaskRequestSerializer(data=request.data)
     if serializer.is_valid():
         task = task_service.create_task(serializer.validated_data)
         serializer = TaskResponseSerializer(task)
+        CacheService().invalidate_project_tasks(project_id)
+        CacheService().invalidate_project_logs(project_id)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def task_detail(request, project_id, task_id):
     """
     Retrieve details of a specific task within a project.
     """
-    task_service = TaskService(project_id)
-    task = task_service.get_task(task_id)
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    task_service = TaskService(project_id, user)
+    cache_svc = CacheService()
 
-    if not task:
+    def _load():
+        task = task_service.get_task(task_id)
+        if not task:
+            return None
+        return dict(TaskResponseSerializer(task).data)
+
+    data = cache_svc.read_through(
+        key=cache_svc.keys.task_detail(project_id, task_id, user.user_id),
+        ttl_seconds=15,
+        loader=_load,
+    )
+
+    if data is None:
         return Response({"error": "Task not found"}, status=status.HTTP_404_NOT_FOUND)
-
-    serializer = TaskResponseSerializer(task)
-    return Response(serializer.data)
+    return Response(data)
 
 
 @api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
 def task_move(request, project_id, task_id):
     """
     move an existing task within a project in kanbanboard.
@@ -68,7 +97,9 @@ def task_move(request, project_id, task_id):
             "status": string,
         }
     """
-    task_service = TaskService(project_id)
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    task_service = TaskService(project_id, user)
     task = task_service.get_task(task_id)
 
     if not task:
@@ -76,9 +107,12 @@ def task_move(request, project_id, task_id):
 
     moved_task = task_service.move_task(task_id, request.data)
     serializer = TaskResponseSerializer(moved_task)
+    CacheService().invalidate_project_tasks(project_id)
+    CacheService().invalidate_project_logs(project_id)
     return Response(serializer.data)
 
 @api_view(['PUT'])
+@permission_classes([IsAuthenticated])
 def task_update(request, project_id, task_id):
     """
     Update an existing task within a project.
@@ -94,7 +128,9 @@ def task_update(request, project_id, task_id):
             "status": string
         }
     """
-    task_service = TaskService(project_id)
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    task_service = TaskService(project_id, user)
     task = task_service.get_task(task_id)
 
     if not task:
@@ -104,22 +140,30 @@ def task_update(request, project_id, task_id):
     if serializer.is_valid():
         updated_task = task_service.edit_task(task_id, serializer.validated_data)
         serializer = TaskResponseSerializer(updated_task)
+        CacheService().invalidate_project_tasks(project_id)
+        CacheService().invalidate_project_logs(project_id)
         return Response(serializer.data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
 def task_delete(request, project_id, task_id):
     """
     Delete a specific task from a project.
     """
-    task_service = TaskService(project_id)
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    task_service = TaskService(project_id, user)
     if task_service.delete_task(task_id):
+        CacheService().invalidate_project_tasks(project_id)
+        CacheService().invalidate_project_logs(project_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
     return Response({"error": "Task not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def task_assign(request, project_id, task_id):
     """
     Assign a user to a task.
@@ -135,9 +179,13 @@ def task_assign(request, project_id, task_id):
     if not project_member_id:
         return Response({"error": "project_member_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    task_service = TaskService(project_id)
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    task_service = TaskService(project_id, user)
     try:
         user_task, created = task_service.assign_user_to_task(task_id, project_member_id)
+        CacheService().invalidate_project_tasks(project_id)
+        CacheService().invalidate_project_logs(project_id)
         if created:
             return Response({"message": "User assigned to task successfully"}, status=status.HTTP_201_CREATED)
         else:
@@ -147,6 +195,7 @@ def task_assign(request, project_id, task_id):
 
 
 @api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
 def task_unassign(request, project_id, task_id):
     """
     Unassign a user from a task.
@@ -160,10 +209,14 @@ def task_unassign(request, project_id, task_id):
     project_member_id = request.data.get("project_member_id")
     if not project_member_id:
         return Response({"error": "project_member_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    task_service = TaskService(project_id)
+
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+    task_service = TaskService(project_id, user)
     try:
         if task_service.unassign_user_from_task(task_id, project_member_id):
+            CacheService().invalidate_project_tasks(project_id)
+            CacheService().invalidate_project_logs(project_id)
             return Response({"message": "User unassigned from task successfully"}, status=status.HTTP_204_NO_CONTENT)
         else:
             return Response({"error": "Assignment not found"}, status=status.HTTP_404_NOT_FOUND)

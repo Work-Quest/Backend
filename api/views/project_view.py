@@ -9,6 +9,7 @@ from rest_framework import status
 from api.models import BusinessUser
 from api.services.project_service import ProjectService
 from api.serializers.project_serializer import ProjectSerializer, ProjectMemberSerializer
+from api.services.cache_service import CacheService
 
 # -------------------------
 # Project CRUD
@@ -35,6 +36,7 @@ def create_project(request):
         user = BusinessUser.objects.get(auth_user=cur_user)
         domain = ProjectService().create_project(request.data, user)
         serializer = ProjectSerializer(domain.project)
+        CacheService().invalidate_user_projects(user.user_id)
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED,
@@ -71,6 +73,7 @@ def edit_project(request, project_id):
         user = BusinessUser.objects.get(auth_user=cur_user)
         domain = ProjectService().edit_project(project_id, request.data, user)
         serializer = ProjectSerializer(domain.project)
+        CacheService().invalidate_user_projects(user.user_id)
         return Response(
             serializer.data,
             status=status.HTTP_200_OK,
@@ -119,6 +122,14 @@ def batch_delete_projects(request):
                 "error": str(e),
             })
 
+    # Deleting projects changes the current user's project list.
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        CacheService().invalidate_user_projects(user.user_id)
+    except Exception:
+        pass
+
     return Response(
         {
             "deleted_projects": deleted,
@@ -140,11 +151,21 @@ def get_projects(request):
     """
     cur_user = request.user
     user = BusinessUser.objects.get(auth_user=cur_user)
-    domains = ProjectService().get_projects(user.user_id)
-
-    serializer = ProjectSerializer([d.project for d in domains], many=True)
+    cache_svc = CacheService()
+    cache_key = cache_svc.keys.user_projects(user.user_id)
+    cached = cache_svc.get(cache_key)
+    if cached is not None:
+        data = cached
+    else:
+        data = list(
+            ProjectSerializer(
+                [d.project for d in ProjectService().get_projects(user.user_id)],
+                many=True,
+            ).data
+        )
+        cache_svc.set(cache_key, data, ttl_seconds=30)
     return Response(
-        serializer.data,
+        data,
         status=status.HTTP_200_OK,
     )
 
@@ -169,13 +190,21 @@ def join_project(request):
     """
     cur_user = request.user
     user = BusinessUser.objects.get(auth_user=cur_user)
-    res = ProjectService().join_project(request.data.get("project_id"), user)
+    project_id = request.data.get("project_id")
+    res = ProjectService().join_project(project_id, user)
 
-    if not res["member"]:
+    if not res.get("member"):
+        err = res.get("message") or res.get("error") or "Failed to join project"
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "not found" in str(err).lower():
+            status_code = status.HTTP_404_NOT_FOUND
         return Response(
-            {"error": res["message"]},
-            status=status.HTTP_404_NOT_FOUND,
+            {"error": err},
+            status=status_code,
         )
+
+    CacheService().invalidate_user_projects(user.user_id)
+    CacheService().invalidate_project_members(project_id)
 
     serializer = ProjectMemberSerializer(res["member"])
     return Response(
@@ -203,8 +232,11 @@ def leave_project(request):
     """
     cur_user = request.user
     user = BusinessUser.objects.get(auth_user=cur_user)
-    is_left = ProjectService().leave_project(request.data.get("project_id"), user)
+    project_id = request.data.get("project_id")
+    is_left = ProjectService().leave_project(project_id, user)
     if is_left:
+        CacheService().invalidate_user_projects(user.user_id)
+        CacheService().invalidate_project_members(project_id)
         return Response(
             {"message": "Left project successfully"},
             status=status.HTTP_200_OK,
@@ -232,8 +264,10 @@ def close_project(request):
     cur_user = request.user
     user = BusinessUser.objects.get(auth_user=cur_user)
 
-    domain = ProjectService().close_project(request.data.get("project_id"), user)
+    project_id = request.data.get("project_id")
+    domain = ProjectService().close_project(project_id, user)
     serializer = ProjectSerializer(domain.project)
+    CacheService().invalidate_user_projects(user.user_id)
     return Response(
         serializer.data,
         status=status.HTTP_200_OK,
@@ -269,15 +303,27 @@ def get_all_project_members(request, project_id):
     """
     Retrieve all members of a specified project.
     """
-    members = ProjectService().get_all_project_members(project_id)
-    members_data = []
-    for i in members:
-        metadata = {"id" : i.project_member_id,
-                    "name" : i.user.name,
-                    "username" : i.user.username,
-                    "hp" : i.hp,
-                    "status" : i.status}
-        members_data.append(metadata)
+    cache_svc = CacheService()
+
+    def _load() -> list[dict]:
+        members = ProjectService().get_all_project_members(project_id)
+        members_data: list[dict] = []
+        for i in members:
+            metadata = {
+                "id": i.project_member_id,
+                "name": i.user.name,
+                "username": i.user.username,
+                "hp": i.hp,
+                "status": i.status,
+            }
+            members_data.append(metadata)
+        return members_data
+
+    members_data = cache_svc.read_through(
+        key=cache_svc.keys.project_members(project_id),
+        ttl_seconds=10,
+        loader=_load,
+    )
 
     return Response(
         members_data,

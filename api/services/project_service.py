@@ -14,14 +14,20 @@ class ProjectService:
         """
         Create project in DB and return ProjectDomain
         """
+
+        deadline_str = project_data.get("deadline")
+
+        if deadline_str:
+            deadline_dt = parse_datetime(deadline_str)
+
         project = ProjectModel.objects.create(
             owner=user,
             project_name=project_data.get("project_name"),
-            deadline=project_data.get("deadline"),
+            deadline=deadline_dt,
             total_tasks=0,
             completed_tasks=0,
             status="Working")
-        
+
         project_domain = ProjectDomain(project)
         # add owner as member
         project_domain._project_member_management.add_member(user)
