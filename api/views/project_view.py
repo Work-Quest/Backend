@@ -1,5 +1,6 @@
 # views/project.py
 
+import os
 import django.contrib.auth.models
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -7,9 +8,12 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from api.models import BusinessUser
+from api.models.Project import Project as ProjectModel
 from api.services.project_service import ProjectService
+from api.services.join_service import JoinService
 from api.serializers.project_serializer import ProjectSerializer, ProjectMemberSerializer
 from api.services.cache_service import CacheService
+from datetime import timedelta
 
 # -------------------------
 # Project CRUD
@@ -245,6 +249,100 @@ def leave_project(request):
         {"message": "Failed to leave project"},
         status=status.HTTP_400_BAD_REQUEST,
     )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def batch_invite(request, project_id):
+    """
+    Batch invite people to a project by email.
+
+    URL Param:
+        project_id: UUID
+
+    Request Body:
+
+        {
+            "user_ids": ["uuid", "uuid"],
+            "expires_in_days": 2                               (optional)
+        }
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+
+    project = ProjectModel.objects.get(project_id=project_id)
+    if project.owner != user:
+        return Response(
+            {"error": "Only the project owner can invite members."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    users = request.data.get("user_ids")
+    emails = []
+    for i in users:
+        user = BusinessUser.objects.get(user_id=i)
+        emails.append(user.email)
+
+    # todo: env config
+    if os.getenv("DB_ENV") == "prod" :
+        invite_base_url ="https://workquest-1h39.onrender.com" 
+    else:
+        invite_base_url= "http://localhost:5173"
+    expires_in_days = request.data.get("expires_in_days", 2)
+    try:
+        expires_in_days = int(expires_in_days)
+    except Exception:
+        expires_in_days = 2
+
+    payload = JoinService().invite_players(
+        request=request,
+        project_id=project_id,
+        emails=emails,
+        invite_base_url=invite_base_url,
+        expires_in=timedelta(days=max(1, expires_in_days)),
+    )
+
+    if payload.get("error"):
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # If you later add caching for invites, invalidate it here.
+    return Response(payload, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def accept_invite(request):
+    """
+    Accept a project invite using an invite token.
+
+    Request Body:
+    
+        {
+            "token": "string"
+        }
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+
+    token = request.data.get("token") or request.query_params.get("token")
+    payload = JoinService().accept_invite(token, user=user)
+
+    if payload.get("error"):
+        err = str(payload.get("error") or "")
+        err_l = err.lower()
+        status_code = status.HTTP_400_BAD_REQUEST
+        if "invalid invite token" in err_l:
+            status_code = status.HTTP_404_NOT_FOUND
+        elif "does not belong" in err_l:
+            status_code = status.HTTP_403_FORBIDDEN
+        return Response(payload, status=status_code)
+
+    # Membership changes affect the user's project list + the project's member list.
+    CacheService().invalidate_user_projects(user.user_id)
+    if payload.get("project_id"):
+        CacheService().invalidate_project_members(payload["project_id"])
+
+    return Response(payload, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])

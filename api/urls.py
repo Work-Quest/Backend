@@ -15,6 +15,8 @@ urlpatterns = [
     path("auth/status/", check_auth_status),
     path("auth/refresh/", refresh_token),
     path("me/", me),
+    # ----- User URLs -----
+    path("users/business/", get_all_business_users, name="get_all_business_users"),
     # ----- Project URLs -----
     path("project/create/", create_project, name="create_project"),
     path("project/<uuid:project_id>/edit/", edit_project, name="edit_project"),
@@ -24,6 +26,8 @@ urlpatterns = [
     path("project/<uuid:project_id>/access/", check_project_access, name="check_project_access"),
     path("project/member/join/",join_project,name="join_project"),
     path("project/member/leave/",leave_project,name="leave_project"),
+    path("project/<uuid:project_id>/invite/", batch_invite, name="batch_invite"),
+    path("project/invite/accept/", accept_invite, name="accept_invite"),
     path("project/<uuid:project_id>/members/",get_all_project_members,name="get_all_project_members"),
     # ----- Task URLs -----
     path("project/<uuid:project_id>/tasks/", task_list, name="task_list"),
