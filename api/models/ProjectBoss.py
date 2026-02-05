@@ -17,6 +17,6 @@ class ProjectBoss(models.Model):
     hp = models.IntegerField(default=0)
     max_hp = models.IntegerField(default=1000)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Alive")
-    phrase = models.IntegerField(default=1)
+    phase = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(default=timezone.now)

@@ -5,7 +5,7 @@ import datetime
 import random
 from django.utils import timezone
 from api.models import TaskLog
-
+import math
 
 class Game:
     def __init__(self, project_domain):
@@ -22,7 +22,12 @@ class Game:
 
         self.BASE_SCORE = 0.1
         self.BASE_SPECIAL_BOSS_HP = 5000
+        self.DAMAGE_TUNING = {
+            "priority": { "base": 0.4, "weight": 0.8 },   
+            "speed":    { "base": 0.6, "weight": 0.9 },
+        }
 
+        
     @property
     def players(self):
         return self._players
@@ -44,7 +49,7 @@ class Game:
         self._boss = BossDomain(project_boss)
         return self._boss
 
-    def initail_boss_set_up(self):
+    def initial_boss_setup(self):
         existing = self.boss
         if existing is not None and existing.boss is not None:
             raise ValueError("Boss already initialized")
@@ -104,7 +109,7 @@ class Game:
         # set up boss next phase
         self.boss.max_hp = hp_change
         self.boss.hp = hp_change
-        self.boss.phrase += 1
+        self.boss.phase += 1
 
         self.boss.updated_at = timezone.now()
 
@@ -158,7 +163,22 @@ class Game:
         time_left = task.deadline - timezone.now()
         time_left_percent = time_left / (task.deadline - task.created_at) 
         
-        damage = self.BASE_PLAYER_DAMAGE * (task.priority /time_left_percent)
+        
+        # normalize 
+        priorityFactor = task.priority / 4
+        if time_left_percent >= 0:
+            speedFactor = 0.5 + 0.5 * time_left_percent
+        else:
+            lateness = -time_left_percent
+            penalty = math.exp(-2 * lateness)
+            speedFactor = 0.5 * penalty
+
+        speedFactor = max(speedFactor, 0.1)
+        # weight
+        priority_weight = self.DAMAGE_TUNING["priority"]["base"] + self.DAMAGE_TUNING["priority"]["weight"]  * priorityFactor
+        time_weight = self.DAMAGE_TUNING["speed"]["base"] + self.DAMAGE_TUNING["speed"]["weight"]  * speedFactor
+
+        damage = self.BASE_DAMAGE * priority_weight * time_weight
         # buff or debuff effect
 
         for user_effect in effects:
