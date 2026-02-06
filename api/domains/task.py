@@ -7,6 +7,10 @@ class Task:
         self._task = task_model
 
     @property
+    def task(self):
+        return self._task
+
+    @property
     def task_id(self):
         return self._task.task_id
 

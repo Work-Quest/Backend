@@ -17,7 +17,8 @@ class AIService:
             self.sentiment_analyzer = HuggingFaceSentimentAnalyzer()
         else:
             raise RuntimeError("No sentiment analyzer configured (HuggingFace adapter unavailable).")
-
+    
+    
     def analyze_sentiment(self, text: str) -> dict:
         if not text or not text.strip():
             raise ValueError("No sentiment text")

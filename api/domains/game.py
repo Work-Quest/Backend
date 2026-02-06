@@ -104,7 +104,7 @@ class Game:
         # set up boss next phase
         self.boss.max_hp = hp_change
         self.boss.hp = hp_change
-        self.boss.phrase += 1
+        self.boss.phase += 1
 
         self.boss.updated_at = timezone.now()
 

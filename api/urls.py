@@ -51,7 +51,7 @@ urlpatterns = [
     # ----- Log URLs -----
     path("project/<uuid:project_id>/logs/game/", get_project_logs, name="get_project_logs"),
     # ----- Review URLs -----
-    path("review/report/", review_report, name="review_report"),
+    path("project/<uuid:project_id>/review/report/", review_report, name="review_report"),
     # ----- AI URLs -----
     path("ai/sentiment/", analyze_sentiment, name="analyze_sentiment"),
 ]

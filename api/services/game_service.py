@@ -88,7 +88,7 @@ class GameService:
                 "hp": boss.hp,
                 "max_hp": boss.max_hp,
                 "status": boss.status,
-                "pharse": boss.phrase,
+                "phase": boss.phase,
                 "updated_at": boss.updated_at
             }
         except ProjectModel.DoesNotExist:
@@ -159,6 +159,8 @@ class GameService:
             return domain.game.player_revive(player_id)
         except ProjectModel.DoesNotExist:
             raise ValueError("Project not found")
+
+
 
 
 

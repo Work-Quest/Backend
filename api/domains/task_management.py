@@ -4,6 +4,7 @@ from api.models.UserTask import UserTask
 from api.models.ProjectMember import ProjectMember
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from .task import Task as TaskDomain
 
 
@@ -88,13 +89,18 @@ class TaskManagement:
             raise ValueError("Cannot move a completed task back to an active status.")
         
         task_status = task_data.get("status")
-        task.status = task_status
 
         if task_status == "done":
+            # ensure done date exists for downstream mechanics (e.g., trust-score alignment)
+            task._task.status = "done"
+            task._task.completed_at = timezone.now()
+            task._task.save(update_fields=["status", "completed_at"])
             self.project.completed_tasks += 1
             self.project.save(update_fields=["completed_tasks"])
 
             EVENT = "TASK_COMPLETED"
+        else:
+            task.status = task_status
         
         project_member = task.get_assigned_members()
         # get current user if not assigned, assign to user making the move
