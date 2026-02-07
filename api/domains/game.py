@@ -5,6 +5,7 @@ import datetime
 import random
 from django.utils import timezone
 from api.models import TaskLog
+from api.domains.review import Review
 
 
 class Game:
@@ -12,6 +13,7 @@ class Game:
         self._project = project_domain
         self._task_management = project_domain.TaskManagement
         self._project_member_management = project_domain.project_member_management
+        self._review = Review()
         self._players = self._project_member_management.members
 
         self._boss = None
@@ -283,6 +285,9 @@ class Game:
             "task_id": task.task_id,
             "attacked_players": attacked_players
         }
+    
+    def player_support(self):
+        pass
 
     def player_heal(self, Healer_id, player_id, heal_value):
         """

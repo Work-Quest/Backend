@@ -2,50 +2,46 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from api.domains.review_types import QualityLabel, TaskFacts
+from api.dtos.review_dto import TaskFacts
 
 
 class TrustScorePolicy(Protocol):
     """
-    Domain concept: compute trust score in [0,1].
-    In your case: alignment between objective task facts (done date/priority) and AI quality.
+    Comput weight score by alignment between objective task facts (done date/priority) and user's sentiment analysis score.
     """
 
-    def compute(self, *, facts: TaskFacts, ai_quality: QualityLabel) -> float: ...
+    def compute(self, *, facts: TaskFacts) -> float: ...
 
 
 class AlignmentTrustScorePolicy:
     """
-    Trust score = alignment(objective_quality_from_task_facts, ai_quality).
-
-    Skeleton rules:
-    - derive objective label from (completed_at, deadline, priority)
-    - compare objective label with AI quality (-1/0/1)
-    - reduce trust if evidence is missing (e.g., no completed_at)
+    Tust score policy for weight sentiment analysis with actual outcome
+    AI sentiment score = [1,2,3,4,5]
     """
 
     def __init__(self, *, on_time_grace_ratio: float = 0.10):
         self.on_time_grace_ratio = on_time_grace_ratio
 
-    def compute(self, *, facts: TaskFacts, ai_quality: QualityLabel) -> float:
-        objective = self._objective_quality_label(facts)
+    def compute(self, facts: TaskFacts, sentiment_score: int):
+        """
+        return weighted score and 
+        """
+        evidence = self._objective_quality_label(facts)
+        k = self._evidence_weight(facts)
+        normalized = (sentiment_score - 3.0) / 2.0
+        alighment_score = evidence - normalized 
+        weight = alighment_score * k
+        weighted_score = sentiment_score + weight
+        return {
+            "weight_sentiment_score" : self._clamp01(weighted_score),
+            "alighment_score": alighment_score}
 
-        if objective == ai_quality:
-            base = 1.0
-        elif objective == 0 or ai_quality == 0:
-            base = 0.6
-        else:
-            base = 0.2
-
-        evidence = self._evidence_weight(facts)
-        return self._clamp01(base * evidence)
-
-    def _objective_quality_label(self, facts: TaskFacts) -> QualityLabel:
+    def _objective_quality_label(self, facts: TaskFacts) :
         """
         Convert task completion timing + priority into an expected quality label.
-        - completed_at missing => 0 (unknown/neutral)
-        - deadline missing => rough duration heuristic (placeholder)
-        - deadline present => compute slack vs available time window (priority-adjusted)
+        negative = -1
+        netural = 0
+        positive = 1
         """
         if facts.completed_at_ts is None:
             return 0
@@ -74,13 +70,12 @@ class AlignmentTrustScorePolicy:
 
     def _evidence_weight(self, facts: TaskFacts) -> float:
         if facts.completed_at_ts is None:
-            return 0.4
-        if facts.deadline_ts is None:
-            return 0.7
-        return 1.0
+            return 1.0
+        return 1.5
 
     def _clamp01(self, x: float) -> float:
-        return max(0.0, min(1.0, float(x)))
+        return max(1.0, min(5.0, x))
+
 
 
 

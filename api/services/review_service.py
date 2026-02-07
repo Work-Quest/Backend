@@ -6,8 +6,8 @@ from api.models import TaskLog
 from api.domains.project import Project as ProjectDomain
 from api.models.Report import Report
 from api.domains.report import Report as ReportDomain
-from api.domains.review_domain import ReviewDomain
-from api.domains.review_types import TaskFacts
+from api.domains.review import Review as ReviewDomain
+# from api.dtos.review_types import TaskFacts
 from api.models import (
     Project as ProjectModel,
     ProjectMember as ProjectMemberModel,
@@ -74,7 +74,6 @@ class ReviewService:
         if not project_domain.check_access(business_user):
             raise PermissionError("User does not have access to this project.")
 
-        # Persist Report via Report domain factory
         report_model = Report.objects.create(
                 task=task_domain.task,
                 reporter=reviewer_member_model,
@@ -88,7 +87,6 @@ class ReviewService:
 
         for i in valid_receivers:
             receiver_member_model = ProjectMemberModel.objects.get(project_member_id=i.project_member_id, project=project)
-            # Link reviewer/receiver via UserReport
             user_report = UserReport.objects.create(
                 report=report,
                 reviewer=reviewer_member_model,
