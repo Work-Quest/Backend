@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from api.models import Report as ReportModel, Task
+from api.domains.project_member import ProjectMember
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,10 @@ class Report:
     @property
     def task(self):
         return self._report.task
+    
+    @property
+    def task_id(self):
+        return self._report.task.task_id
 
     @property
     def description(self):
@@ -45,7 +50,7 @@ class Report:
 
     @property
     def reporter(self):
-        return self._report.reporter
+        return ProjectMember(self._report.reporter)
 
     @property
     def sentiment_score(self):

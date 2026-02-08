@@ -13,15 +13,7 @@ from api.domains.trust_score_policy import TrustScorePolicy, AlignmentTrustScore
 
 class Review:
     """
-    Review business logic (game-related).
-
-    Domain responsibilities:
-    - Define AI/trust as domain concepts (policies)
-    - Convert (task facts + review text) => signals
-    - Apply formulas:
-        score_receive = trust_score * base_score
-        review_score  = trust_score * (base_score * quality)
-    - Map review_score to buff/debuff decision
+    Review business logic (game-related)
     """
 
     def __init__(self):
@@ -58,7 +50,7 @@ class Review:
 
     def calculate_player_score(self, facts: TaskFacts, sentiment_score:int ):
         """
-        Calculate player recieved score from review other player by weight from alignment score
+        Calculate player received score from review other player by weight from alignment score
         """
         scores = self.trust_policy.compute(facts, sentiment_score)
         # normalize alignment_scote [-2,2] to [1,100]
@@ -81,13 +73,7 @@ class Review:
             effect = random.choice(self.good_rare_effects)
         elif score == 5:
             effect = random.choice(self.good_epic_effects)
-
-        # random if user will recieve Item of effect imeadiately
-        choice = ["effect", "item"]
-        rand_choice = random.choice(choice)
-        if rand_choice == "item":
-            item = Item.object.get(effect=effect)
-            return item
+                    
         return effect
            
     # name = models.CharField(max_length=100)

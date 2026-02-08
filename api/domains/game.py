@@ -1,11 +1,18 @@
+from Backend.api.models import UserEffect
+from api.models import UserItem
+from api.models import Item
 from api.models.ProjectBoss import ProjectBoss
 from api.domains.boss import Boss as BossDomain
 from api.models.Boss import Boss
 import datetime
+import django.urls
 import random
 from django.utils import timezone
 from api.models import TaskLog
 from api.domains.review import Review
+from django.utils import timezone
+from api.dtos.review_dto import TaskFacts
+from api.models import UserReport
 
 
 class Game:
@@ -286,8 +293,97 @@ class Game:
             "attacked_players": attacked_players
         }
     
-    def player_support(self):
-        pass
+    def player_support(self, report_domain):
+        """
+        Apply "support" from a review/report to one or more receivers.
+
+        - **Receives**: `report_domain` (expected to be `api.domains.report.Report` or a Report model-like object)
+        - **Uses**: review-domain score logic (`Review.calculate_player_score(...)`) to calculate score delta
+        - **Applies**: score gain to receiver(s)
+        """
+        if report_domain is None:
+            raise ValueError("report_domain is required")
+
+        task = self._task_management.get_task(report_domain.task_id)
+        if task is None:
+            raise ValueError("report_domain.task is required")
+       
+
+        facts = TaskFacts(
+            priority= task.priority,
+            created_at_ts= task.created_at,
+            completed_at_ts= task.completed_at,
+            deadline_ts= task.deadline
+        )
+
+        # Determine receivers
+        receivers = task.get_assigned_members()
+
+        # --- Score calculation (use Review domain method only) ---
+        reporter_score = self._review.calculate_player_score(facts, report_domain.sentiment_score)
+
+        reporter = report_domain.reporter
+        reporter.score += reporter_score
+
+        applied = []
+        for receiver in receivers:
+            # Only apply to living players (game rules align with heal/attack methods).
+            if getattr(receiver, "status", None) == "Dead":
+                applied.append(
+                    {
+                        "receiver_id": str(receiver.project_member_id),
+                        "applied": False,
+                        "reason": "receiver is dead",
+                    }
+                )
+                continue
+            # effect recieve
+            effect = self._review.decide_effect(facts, report_domain.sentiment_score)
+            # random whether user recieve item or effect
+            choice = ["effect", "item"]
+            rand_choice = random.choice(choice)
+            item = Item.object.get(effect=effect)
+            if item == None:
+                rand_choice = "effect"
+            if rand_choice == "item":
+                user_item = UserItem.objects.create(
+                    project_member=receiver,
+                    item=item)
+
+                #Todo: add log for give item action here after refactor log schema
+
+                applied.append(
+                    {
+                        "receiver_id": str(receiver.project_member_id),
+                        "applied": True,
+                        "type" : "item",                        
+                        "recieved" : user_item.user_item_id
+                    }
+                )
+            else: 
+                userEffect = UserEffect.objects.create(
+                    project_member=receiver,
+                    effect=effect)
+                
+                #Todo: add log for give buff/debuff action here after refactor log schema
+                applied.append(
+                    {
+                        "receiver_id": str(receiver.project_member_id),
+                        "applied": True,
+                        "type" : "effect",                        
+                        "recieved" : userEffect.user_item_id
+                    }
+                )
+
+        return {
+            "report_id": report_domain.report_id,
+            "reporter" : {
+                            "reporter_id" : str(reporter.project_member_id),
+                            "score_recieve" : reporter_score,
+                            "total_score" : reporter.score
+                        },
+            "applied": applied,
+        }
 
     def player_heal(self, Healer_id, player_id, heal_value):
         """

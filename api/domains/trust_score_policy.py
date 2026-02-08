@@ -29,12 +29,13 @@ class AlignmentTrustScorePolicy:
         evidence = self._objective_quality_label(facts)
         k = self._evidence_weight(facts)
         normalized = (sentiment_score - 3.0) / 2.0
-        alighment_score = evidence - normalized 
-        weight = alighment_score * k
+        alignment_score = evidence - normalized
+        weight = alignment_score * k
         weighted_score = sentiment_score + weight
         return {
             "weight_sentiment_score" : self._clamp01(weighted_score),
-            "alighment_score": alighment_score}
+            "alignment_score": alignment_score,
+        }
 
     def _objective_quality_label(self, facts: TaskFacts) :
         """

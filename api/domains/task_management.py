@@ -52,12 +52,21 @@ class TaskManagement:
         return new_task_domain
 
     def get_task(self, task_id):
+        # If tasks cache is already loaded, do an in-memory lookup (no DB hit).
+        if self._tasks is not None:
+            for t in self._tasks:
+                if str(t.task_id) == str(task_id):
+                    return t
+            return None
+
+        # Otherwise, fall back to DB lookup (always fresh).
         try:
             task = Task.objects.get(task_id=task_id, project=self.project)
             return TaskDomain(task)
         except Task.DoesNotExist:
             return None
-
+        
+        
     def edit_task(self, task_id, task_data):
         task = self.get_task(task_id)
         if not task:
