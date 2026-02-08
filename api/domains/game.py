@@ -1,6 +1,6 @@
-from Backend.api.models import UserEffect
-from api.models import UserItem
-from api.models import Item
+from api.models.UserItem import UserItem
+from api.models.Item import Item
+from api.models.UserEffect import UserEffect
 from api.models.ProjectBoss import ProjectBoss
 from api.domains.boss import Boss as BossDomain
 from api.models.Boss import Boss
@@ -309,21 +309,24 @@ class Game:
             raise ValueError("report_domain.task is required")
        
 
+        def _ts(dt):
+            return dt.timestamp() if dt is not None else None
+
         facts = TaskFacts(
-            priority= task.priority,
-            created_at_ts= task.created_at,
-            completed_at_ts= task.completed_at,
-            deadline_ts= task.deadline
+            priority=int(task.priority or 1),
+            created_at_ts=float(_ts(task.created_at)),
+            completed_at_ts=_ts(task.completed_at),
+            deadline_ts=_ts(task.deadline),
         )
 
         # Determine receivers
         receivers = task.get_assigned_members()
 
         # --- Score calculation (use Review domain method only) ---
-        reporter_score = self._review.calculate_player_score(facts, report_domain.sentiment_score)
+        reporter_score = int(self._review.calculate_player_score(facts, report_domain.sentiment_score))
 
         reporter = report_domain.reporter
-        reporter.score += reporter_score
+        reporter.score = reporter.score + reporter_score
 
         applied = []
         for receiver in receivers:
@@ -339,15 +342,26 @@ class Game:
                 continue
             # effect recieve
             effect = self._review.decide_effect(facts, report_domain.sentiment_score)
+            if effect is None:
+                applied.append(
+                    {
+                        "receiver_id": str(receiver.project_member_id),
+                        "applied": False,
+                        "reason": "no effect configured",
+                    }
+                )
+                continue
             # random whether user recieve item or effect
             choice = ["effect", "item"]
             rand_choice = random.choice(choice)
-            item = Item.object.get(effect=effect)
-            if item == None:
+            item = None
+            if effect is not None:
+                item = Item.objects.filter(effects=effect).first()
+            if item is None:
                 rand_choice = "effect"
             if rand_choice == "item":
                 user_item = UserItem.objects.create(
-                    project_member=receiver,
+                    project_member=receiver.project_member,
                     item=item)
 
                 #Todo: add log for give item action here after refactor log schema
@@ -357,12 +371,12 @@ class Game:
                         "receiver_id": str(receiver.project_member_id),
                         "applied": True,
                         "type" : "item",                        
-                        "recieved" : user_item.user_item_id
+                        "received" : str(user_item.user_item_id)
                     }
                 )
             else: 
-                userEffect = UserEffect.objects.create(
-                    project_member=receiver,
+                user_effect = UserEffect.objects.create(
+                    project_member=receiver.project_member,
                     effect=effect)
                 
                 #Todo: add log for give buff/debuff action here after refactor log schema
@@ -371,7 +385,7 @@ class Game:
                         "receiver_id": str(receiver.project_member_id),
                         "applied": True,
                         "type" : "effect",                        
-                        "recieved" : userEffect.user_item_id
+                        "received" : str(user_effect.user_effect_id)
                     }
                 )
 
@@ -405,15 +419,15 @@ class Game:
 
         player.heal(heal_value)
 
-        player.score = player.score + (heal_value * self.BASE_SCORE)
+        player.score = player.score + int(heal_value * self.BASE_SCORE)
 
-        log = TaskLog.objects.create(
-                project_member=healer,
-                received_project_member=player,
-                action_type="USER",
-                score_change = heal_value * self.BASE_SCORE,
-                event="PLAYER_HEALED"
-            )
+        # log = TaskLog.objects.create(
+        #         project_member=healer.project_member,
+        #         received_project_member=player.project_member,
+        #         action_type="USER",
+        #         score_change=int(heal_value * self.BASE_SCORE),
+        #         event="HEAL"
+        #     )
         
         return {
             "healer_id": Healer_id,

@@ -3,8 +3,10 @@ from django.db import transaction
 from api.models.ProjectBoss import ProjectBoss
 from api.models.Project import Project as ProjectModel
 from api.models.Task import Task
+from api.models.Report import Report as ReportModel
 from api.domains.project import Project as ProjectDomain
 from api.domains.task import Task as TaskDomain
+from api.domains.report import Report as ReportDomain
 
 class GameService:
 
@@ -69,6 +71,35 @@ class GameService:
             return domain.game.player_heal(healer_id, player_id, heal_value)
         except ProjectModel.DoesNotExist:
             raise ValueError("Project not found")
+
+    def player_support(self, project_id, report_id, business_user=None):
+        """
+        Apply support (buff/effect or item) based on a created review Report.
+
+        Request expects an existing Report ID.
+        """
+        try:
+            project = ProjectModel.objects.get(project_id=project_id)
+            domain = ProjectDomain(project)
+
+            if business_user is not None and not domain.check_access(business_user):
+                raise PermissionError("User does not have access to this project.")
+
+            report_model = (
+                ReportModel.objects
+                .select_related("task", "reporter", "task__project")
+                .get(report_id=report_id)
+            )
+
+            if report_model.task.project_id != project.project_id:
+                raise ValueError("Report does not belong to this project")
+
+            report_domain = ReportDomain(report_model)
+            return domain.game.player_support(report_domain)
+        except ProjectModel.DoesNotExist:
+            raise ValueError("Project not found")
+        except ReportModel.DoesNotExist:
+            raise ValueError("Report not found")
 
     def get_boss_status(self, project_id):
         """

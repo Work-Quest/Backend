@@ -45,6 +45,7 @@ urlpatterns = [
     path("game/project/<uuid:project_id>/boss/attack/", boss_attack, name="boss_attack"),
     path("game/project/<uuid:project_id>/project_member/attack/", player_attack, name="player_attack"),
     path("game/project/<uuid:project_id>/project_member/heal/", player_heal, name="player_heal"),
+    path("game/project/<uuid:project_id>/project_member/support/", player_support, name="player_support"),
     path("game/project/<uuid:project_id>/project_member/revive/", revive, name="palyer_revive"),
     path("game/project/<uuid:project_id>/project_member/get_all_status/", get_user_statuses, name="get_user_statuses"),
     path("game/project/<uuid:project_id>/status/", get_game_status, name="get_game_status"),

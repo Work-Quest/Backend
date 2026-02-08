@@ -43,22 +43,24 @@ class ReviewService:
         }
         """
 
-        task_id = payload.get("task_id")
-        description = payload.get("description")
+        task_id = (payload or {}).get("task_id")
+        description = (payload or {}).get("description")
+
+        if not project_id or not task_id:
+            raise ValueError("project_id and task_id are required")
+        if not description or not str(description).strip():
+            raise ValueError("description is required")
 
         project = ProjectModel.objects.get(project_id=project_id)
         project_domain = ProjectDomain(project)
-        task_domain = project_domain.TaskManagement.get_task(task_id)
 
+        if not project_domain.check_access(business_user):
+            raise PermissionError("User does not have access to this project.")
+
+        task_domain = project_domain.TaskManagement.get_task(task_id)
         if not task_domain:
             raise ValueError("Task not found")
-    
-        if not project_id or not task_id:
-            raise ValueError("project_id, task_id, receiver_project_member_id are required")
 
-        if not description or not str(description).strip():
-            raise ValueError("description is required")
-            
         receivers = task_domain.get_assigned_members()
         reviewer_member_model = ProjectMemberModel.objects.get(project=project, user=business_user)
         valid_receivers = [
@@ -70,37 +72,41 @@ class ReviewService:
             raise ValueError("Cannot create report: reviewer cannot review themselves")
 
         result = AIService().analyze_sentiment(str(description))
+        sentiment_score = int(result.get("score", 0))
 
-        if not project_domain.check_access(business_user):
-            raise PermissionError("User does not have access to this project.")
-
-        report_model = Report.objects.create(
+        with transaction.atomic():
+            report_model = Report.objects.create(
                 task=task_domain.task,
                 reporter=reviewer_member_model,
                 description=description,
-                sentiment_score=result["score"],
-        )
-        report_domain = ReportDomain(report_model)
-        report = report_domain.report
-
-        user_reports = []
-
-        for i in valid_receivers:
-            receiver_member_model = ProjectMemberModel.objects.get(project_member_id=i.project_member_id, project=project)
-            user_report = UserReport.objects.create(
-                report=report,
-                reviewer=reviewer_member_model,
-                receiver=receiver_member_model,
+                sentiment_score=sentiment_score,
             )
-            user_reports.append(user_report)
-            log = TaskLog.objects.create(
-                project_member=reviewer_member_model,
-                received_project_member=receiver_member_model,
-                action_type="USER",
-                event="TASK_REVIEW"
-            )
+            report_domain = ReportDomain(report_model)
+            report = report_domain.report
 
-        return report, user_reports
+            user_reports = []
+
+            for i in valid_receivers:
+                receiver_member_model = ProjectMemberModel.objects.get(
+                    project_member_id=i.project_member_id,
+                    project=project,
+                )
+                user_report = UserReport.objects.create(
+                    report=report,
+                    reviewer=reviewer_member_model,
+                    receiver=receiver_member_model,
+                )
+                user_reports.append(user_report)
+                TaskLog.objects.create(
+                    project_member=reviewer_member_model,
+                    received_project_member=receiver_member_model,
+                    task=task_domain.task,
+                    report=report_model,
+                    action_type="USER",
+                    event="TASK_REVIEW",
+                )
+
+            return report, user_reports
 
     # def _build_task_facts(self, task_domain) -> TaskFacts:
     #     """

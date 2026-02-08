@@ -275,6 +275,51 @@ def player_heal(request, project_id):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def player_support(request, project_id):
+    """
+    Apply support (buff/effect or item) from a review Report.
+
+    Body:
+    
+      { 
+        "report_id": "uuid" 
+      }
+    """
+    try:
+        report_id = request.data.get("report_id")
+        if not report_id:
+            return Response(
+                {"error": "report_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+
+        service = GameService()
+        result = service.player_support(project_id, report_id, user)
+
+        CacheService().invalidate_project_game(project_id)
+        CacheService().invalidate_project_logs(project_id)
+
+        return Response(
+            {
+                "message": "Player support applied successfully",
+                "result": result,
+            },
+            status=status.HTTP_200_OK,
+        )
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+    except BusinessUser.DoesNotExist:
+        return Response({"error": "Business user profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 # -----------------
 # Real-time Status
