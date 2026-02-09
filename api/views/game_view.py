@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from api.models import BusinessUser
+from api.models.ProjectMember import ProjectMember
 from api.services.game_service import GameService
 from api.serializers.game_serializer import BossSerializer, ProjectBossSerializer
 from api.services.cache_service import CacheService
@@ -168,6 +169,7 @@ def player_attack(request, project_id):
 
         CacheService().invalidate_project_game(project_id)
         CacheService().invalidate_project_logs(project_id)
+        CacheService().invalidate_project_member_status_effects(project_id)
 
         return Response(
             {
@@ -213,6 +215,7 @@ def boss_attack(request, project_id):
 
         CacheService().invalidate_project_game(project_id)
         CacheService().invalidate_project_logs(project_id)
+        CacheService().invalidate_project_member_status_effects(project_id)
 
         return Response(
             {
@@ -315,6 +318,8 @@ def player_support(request, project_id):
 
         CacheService().invalidate_project_game(project_id)
         CacheService().invalidate_project_logs(project_id)
+        CacheService().invalidate_project_member_items(project_id)
+        CacheService().invalidate_project_member_status_effects(project_id)
 
         return Response(
             {
@@ -512,6 +517,141 @@ def revive(request, project_id):
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+# -----------------
+# Project Member Items
+# -----------------
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_project_member_items(request, project_id):
+    """
+    List the currently logged-in user's owned items for this project.
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+
+        requester_member = ProjectMember.objects.get(project_id=project_id, user=user)
+        target_member_id = str(requester_member.project_member_id)
+
+        service = GameService()
+        cache_svc = CacheService()
+
+        def _load():
+            # Explicit player_id so the service uses the same member id as the cache key.
+            return service.get_project_member_items(project_id, user, player_id=target_member_id)
+
+        data = cache_svc.read_through(
+            key=cache_svc.keys.project_member_items(project_id, target_member_id),
+            ttl_seconds=3,
+            loader=_load,
+        )
+
+        return Response(data, status=status.HTTP_200_OK)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+    except BusinessUser.DoesNotExist:
+        return Response({"error": "Business user profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+    except ProjectMember.DoesNotExist:
+        return Response({"error": "User is not a member of this project."}, status=status.HTTP_403_FORBIDDEN)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def use_project_member_item(request, project_id):
+    """
+    Use/consume an owned item and apply its effect.
+
+    Body:
+    
+    {
+        "item_id" : uuid,
+        "player_id" : uuid
+    }
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+
+        item_id = request.data.get("item_id")
+        player_id = request.data.get("player_id")
+        if not item_id:
+            return Response({"error": "item_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        service = GameService()
+        # Default player_id to requester to support targeted cache invalidation
+        requester_member = ProjectMember.objects.get(project_id=project_id, user=user)
+        target_member_id = requester_member.project_member_id
+
+        result = service.use_project_member_item(
+            project_id,
+            user,
+            item_id=str(item_id),
+            player_id=target_member_id,
+        )
+
+        CacheService().invalidate_project_game(project_id)
+        CacheService().invalidate_project_logs(project_id)
+        CacheService().invalidate_project_member_items(project_id, target_member_id)
+        CacheService().invalidate_project_member_status_effects(project_id)
+
+        return Response(
+            {"message": "Item used successfully", "result": result},
+            status=status.HTTP_200_OK,
+        )
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+    except BusinessUser.DoesNotExist:
+        return Response({"error": "Business user profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+    except ProjectMember.DoesNotExist:
+        return Response({"error": "User is not a member of this project."}, status=status.HTTP_403_FORBIDDEN)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# -----------------
+# Project Member Status + Effects
+# -----------------
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_project_member_status_effects(request, project_id):
+    """
+    Get the currently logged-in user's status plus their current effects.
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+
+        requester_member = ProjectMember.objects.get(project_id=project_id, user=user)
+        target_member_id = str(requester_member.project_member_id)
+
+        service = GameService()
+        cache_svc = CacheService()
+        data = cache_svc.read_through(
+            key=cache_svc.keys.project_member_status_effects(project_id, target_member_id),
+            ttl_seconds=3,
+            loader=lambda: service.get_project_member_status_effects(project_id, user, player_id=target_member_id),
+        )
+        return Response(data, status=status.HTTP_200_OK)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+    except BusinessUser.DoesNotExist:
+        return Response({"error": "Business user profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+    except ProjectMember.DoesNotExist:
+        return Response({"error": "User is not a member of this project."}, status=status.HTTP_403_FORBIDDEN)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response(
             {"error": str(e)},
