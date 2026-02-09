@@ -21,6 +21,9 @@ class CacheKeys:
         return ":".join(safe_parts)
 
     # ---- Game ----
+    def project_boss(self, project_id: object) -> str:
+        return self.key("game", "project_boss", project_id)
+
     def boss_status(self, project_id: object) -> str:
         return self.key("game", "boss_status", project_id)
 
@@ -29,6 +32,9 @@ class CacheKeys:
 
     def game_status(self, project_id: object) -> str:
         return self.key("game", "game_status", project_id)
+
+    def all_bosses(self) -> str:
+        return self.key("game", "all_bosses")
 
     # ---- Projects ----
     def user_projects(self, user_id: object) -> str:
@@ -55,6 +61,10 @@ class CacheKeys:
     def task_detail_pattern(self, project_id: object) -> str:
         # wildcard task_id and user_id
         return self.key("task", "task_detail", project_id, "*", "*")
+
+    # ---- User ----
+    def user_me(self, user_id: object) -> str:
+        return self.key("user", "me", user_id)
 
 
 class CacheService:
@@ -120,6 +130,7 @@ class CacheService:
     def invalidate_project_game(self, project_id: object) -> None:
         self.delete_many(
             [
+                self.keys.project_boss(project_id),
                 self.keys.boss_status(project_id),
                 self.keys.user_statuses(project_id),
                 self.keys.game_status(project_id),

@@ -24,20 +24,28 @@ def get_project_boss(request, project_id):
     """
     try:
         service = GameService()
-        boss_domain = service.get_project_boss(project_id)
+        cache_svc = CacheService()
 
-        # Convert domain object to dict for serialization
-        boss_data = {
-            "project_boss_id": boss_domain.project_boss.project_boss_id,
-            "project": boss_domain.project_boss.project.project_id,
-            "boss": boss_domain.boss.boss_id if boss_domain.boss else None,
-            "boss_name": boss_domain.name if boss_domain.boss else None,
-            "boss_image": boss_domain.image if boss_domain.boss else None,
-            "hp": boss_domain.hp,
-            "max_hp": boss_domain.max_hp,
-            "status": boss_domain.status,
-            "phase" : boss_domain.phase
-        }
+        def _load():
+            boss_domain = service.get_project_boss(project_id)
+            # Convert domain object to dict for serialization
+            return {
+                "project_boss_id": boss_domain.project_boss.project_boss_id,
+                "project": boss_domain.project_boss.project.project_id,
+                "boss": boss_domain.boss.boss_id if boss_domain.boss else None,
+                "boss_name": boss_domain.name if boss_domain.boss else None,
+                "boss_image": boss_domain.image if boss_domain.boss else None,
+                "hp": boss_domain.hp,
+                "max_hp": boss_domain.max_hp,
+                "status": boss_domain.status,
+                "phase": boss_domain.phase,
+            }
+
+        boss_data = cache_svc.read_through(
+            key=cache_svc.keys.project_boss(project_id),
+            ttl_seconds=5,
+            loader=_load,
+        )
 
         return Response(boss_data, status=status.HTTP_200_OK)
     except ValueError as e:
@@ -60,9 +68,13 @@ def get_all_bosses(request):
     """
     try:
         service = GameService()
-        bosses = service.get_all_bosses()
-        serializer = BossSerializer(bosses, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        cache_svc = CacheService()
+        data = cache_svc.read_through(
+            key=cache_svc.keys.all_bosses(),
+            ttl_seconds=300,
+            loader=lambda: list(BossSerializer(service.get_all_bosses(), many=True).data),
+        )
+        return Response(data, status=status.HTTP_200_OK)
     except Exception as e:
         return Response(
             {"error": str(e)},
@@ -505,6 +517,7 @@ def revive(request, project_id):
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
 
 
 
