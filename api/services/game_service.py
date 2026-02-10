@@ -88,7 +88,9 @@ class GameService:
                 "hp": boss.hp,
                 "max_hp": boss.max_hp,
                 "status": boss.status,
-                "pharse": boss.phrase,
+                "phase": boss.phase,
+                # Backward-compatible key (typo): prefer `phase`
+                "pharse": boss.phase,
                 "updated_at": boss.updated_at
             }
         except ProjectModel.DoesNotExist:
