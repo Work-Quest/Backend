@@ -61,4 +61,4 @@ class Project:
         """
         Setup the boss for this project using the Game domain
         """
-        return self._game.initail_boss_set_up()
+        return self._game.initial_boss_setup()

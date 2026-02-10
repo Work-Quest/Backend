@@ -35,7 +35,8 @@ def _env_csv(name: str, default: list[str]) -> list[str]:
         return default
     return [x.strip() for x in val.split(",") if x.strip()]
 
-def _pick_database_url():
+
+def _pick_database_url() -> str:
     """
     DB URL resolution order:
     1) DATABASE_URL (backwards compatible; also used by docker-compose postgres init)
@@ -67,6 +68,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-!qhz^l=tao%1$($e4c7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DJANGO_DEBUG", default=True)
 
+
 ALLOWED_HOSTS = _env_csv(
     "DJANGO_ALLOWED_HOSTS",
     default=["localhost", "127.0.0.1"],
@@ -88,6 +90,28 @@ INSTALLED_APPS = [
     'corsheaders',
 ]
 
+# Email (SMTP / Gmail)
+EMAIL_PROVIDER = (os.getenv("EMAIL_PROVIDER") or "").strip().lower()
+EMAIL_NOTIFICATIONS_ENABLED = _env_bool("EMAIL_NOTIFICATIONS_ENABLED", default=True)
+
+if not EMAIL_PROVIDER:
+    has_smtp_creds = bool(os.getenv("DJANGO_EMAIL_HOST_USER")) and bool(os.getenv("DJANGO_EMAIL_HOST_PASSWORD"))
+    EMAIL_PROVIDER = "smtp" if (has_smtp_creds or not DEBUG) else "console"
+
+if EMAIL_PROVIDER in {"gmail", "smtp"}:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "smtp.gmail.com")
+    EMAIL_PORT = int(os.getenv("DJANGO_EMAIL_PORT", "587"))
+    EMAIL_USE_TLS = _env_bool("DJANGO_EMAIL_USE_TLS", default=True)
+    EMAIL_USE_SSL = _env_bool("DJANGO_EMAIL_USE_SSL", default=False)
+    EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
+    EMAIL_TIMEOUT = int(os.getenv("DJANGO_EMAIL_TIMEOUT_SECONDS", "10"))
+
+    DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL") or EMAIL_HOST_USER or "no-reply@example.com"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+    DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@localhost")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -96,7 +120,6 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
-    ]
 }
 
 SIMPLE_JWT = {
