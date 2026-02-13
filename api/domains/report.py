@@ -6,18 +6,6 @@ from api.models import Report as ReportModel, Task
 from api.domains.project_member import ProjectMember
 
 
-@dataclass(frozen=True)
-class CreateReportCommand:
-    """
-    Command object for creating a Report (review/report content).
-    Keep this minimal; extend as you add more report fields.
-    """
-
-    task_id: str
-    report_name: str
-    description: str
-
-
 class Report:
     def __init__(self, report_model: ReportModel):
         self._report = report_model
