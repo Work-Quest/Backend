@@ -40,4 +40,25 @@ def review_report(request, project_id):
 
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_all_review(request, project_id):
+    """
+    GET /api/project/<project_id>/review/get_all_review/
+
+    Returns: list[UserReport] (nested Report/Task + reviewer/receiver briefs)
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        user_reports = ReviewService().get_all_reviews(user, project_id)
+        data = UserReportResponseSerializer(user_reports, many=True).data
+        return Response(data, status=status.HTTP_200_OK)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+    except BusinessUser.DoesNotExist:
+        return Response({"error": "Business user profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 

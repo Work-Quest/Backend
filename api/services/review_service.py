@@ -108,6 +108,38 @@ class ReviewService:
 
             return report, user_reports
 
+    def get_all_reviews(self, business_user, project_id):
+        """
+        Read-only: return all UserReport rows for a given project.
+
+        Used by:
+          GET /api/project/<project_id>/review/get_all_review/
+        """
+        if not project_id:
+            raise ValueError("project_id is required")
+
+        project = ProjectModel.objects.get(project_id=project_id)
+        project_domain = ProjectDomain(project)
+
+        if not project_domain.check_access(business_user):
+            raise PermissionError("User does not have access to this project.")
+
+        # UserReport -> Report -> Task -> Project
+        # Use select_related to avoid N+1 in nested serializers.
+        return (
+            UserReport.objects.filter(report__task__project_id=project_id)
+            .select_related(
+                "report",
+                "report__task",
+                "report__reporter",
+                "reviewer",
+                "reviewer__user",
+                "receiver",
+                "receiver__user",
+            )
+            .order_by("-report__created_at")
+        )
+
     # def _build_task_facts(self, task_domain) -> TaskFacts:
     #     """
     #     Convert Task domain object to TaskFacts for trust-score alignment checks.

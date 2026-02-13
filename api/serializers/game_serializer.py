@@ -30,3 +30,4 @@ class ProjectBossSerializer(serializers.ModelSerializer):
         read_only_fields = ["project", "boss_name", "boss_image"]
 
 
+
