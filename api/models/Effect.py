@@ -12,15 +12,14 @@ class Effect(models.Model):
         DEFENCE_DEBUFF = "DEFENCE_DEBUFF"
         HEAL = "HEAL"
 
+    class EffectPolarity(models.TextChoices):
+        GOOD = "GOOD"
+        BAD = "BAD"
+
     effect_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    effect_type = models.CharField(
-        max_length=50,
-        choices=EffectType.choices
-    )
-
+    effect_type = models.CharField(max_length=50, choices=EffectType.choices)
     value = models.FloatField()
-
     description = models.TextField(blank=True)
-
+    rare_level = models.IntegerField(blank=True, null=True)
+    effect_polarity = models.CharField(max_length=50, choices=EffectPolarity.choices, default="GOOD")
     created_at = models.DateTimeField(auto_now_add=True)

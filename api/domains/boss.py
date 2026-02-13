@@ -31,15 +31,7 @@ class Boss:
     @phase.setter
     def phase(self, value: int):
         self._boss.phase = value
-        self._boss.save(update_fields=["phase"])
-
-    # Backward-compatible alias (typo): prefer `.phase`
-    @property
-    def phrase(self) -> int:
-        return self.phase
-    @phrase.setter
-    def phrase(self, value: int):
-        self.phase = value
+        self._boss.save(update_fields=["phase"])  
 
     @hp.setter
     def hp(self, value: int):

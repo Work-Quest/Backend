@@ -4,6 +4,7 @@ import uuid
 from .ProjectBoss import ProjectBoss
 from .Task import Task
 from .ProjectMember import ProjectMember
+from .Report import Report
 
 class TaskLog(models.Model):
 
@@ -18,6 +19,7 @@ class TaskLog(models.Model):
         TASK_UPDATED = "TASK_UPDATED"
         TASK_DELETED = "TASK_DELETED"
         TASK_COMPLETED = "TASK_COMPLETED"
+        TASK_REVIEW = "TASK_REVIEW"
         ASSIGN_USER = "ASSIGN_USER"
         UNASSIGN_USER = "UNASSIGN_USER"
 
@@ -50,7 +52,7 @@ class TaskLog(models.Model):
         null=True, blank=True
     )
 
-    recieved_project_member = models.ForeignKey(
+    received_project_member = models.ForeignKey(
         ProjectMember,
         on_delete=models.CASCADE,
         related_name="received_logs",
@@ -61,6 +63,13 @@ class TaskLog(models.Model):
         ProjectBoss,
         on_delete=models.CASCADE,
         related_name="logs",
+        null=True, blank=True
+    )
+
+    report = models.ForeignKey(
+        Report,
+        on_delete=models.CASCADE,
+        related_name="report",
         null=True, blank=True
     )
 

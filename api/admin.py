@@ -15,6 +15,10 @@ from .models.UserBossCollection import UserBossCollection
 from .models.UserFeedback import UserFeedback
 from .models.UserReport import UserReport
 from .models.UserTask import UserTask
+from .models.Effect import Effect
+from .models.Item import Item
+from .models.UserItem import UserItem
+
 
 admin.site.register(Achievement)
 admin.site.register(Boss)
@@ -32,6 +36,10 @@ admin.site.register(UserBossCollection)
 admin.site.register(UserFeedback)
 admin.site.register(UserReport)
 admin.site.register(UserTask)
+admin.site.register(Effect)
+admin.site.register(Item)
+admin.site.register(UserItem)
+
 
 
 

@@ -21,22 +21,4 @@ class UserItem(models.Model):
         on_delete=models.CASCADE,
         related_name="owned_by"
     )
-
-    quantity = models.IntegerField(default=1)
-
-    is_equipped = models.BooleanField(
-        default=False,
-        help_text="for equipment or passive item"
-    )
-
-    cooldown_remaining = models.IntegerField(
-        null=True, blank=True,
-        help_text="turn-based cooldown"
-    )
-
-    obtained_at = models.DateTimeField(auto_now_add=True)
-
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ("project_member", "item")
+    created_at = models.DateTimeField(auto_now_add=True)

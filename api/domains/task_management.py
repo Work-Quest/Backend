@@ -4,6 +4,7 @@ from api.models.UserTask import UserTask
 from api.models.ProjectMember import ProjectMember
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from .task import Task as TaskDomain
 
 
@@ -51,12 +52,21 @@ class TaskManagement:
         return new_task_domain
 
     def get_task(self, task_id):
+        # If tasks cache is already loaded, do an in-memory lookup (no DB hit).
+        if self._tasks is not None:
+            for t in self._tasks:
+                if str(t.task_id) == str(task_id):
+                    return t
+            return None
+
+        # Otherwise, fall back to DB lookup (always fresh).
         try:
             task = Task.objects.get(task_id=task_id, project=self.project)
             return TaskDomain(task)
         except Task.DoesNotExist:
             return None
-
+        
+        
     def edit_task(self, task_id, task_data):
         task = self.get_task(task_id)
         if not task:
@@ -88,13 +98,18 @@ class TaskManagement:
             raise ValueError("Cannot move a completed task back to an active status.")
         
         task_status = task_data.get("status")
-        task.status = task_status
 
         if task_status == "done":
+            # ensure done date exists for downstream mechanics (e.g., trust-score alignment)
+            task._task.status = "done"
+            task._task.completed_at = timezone.now()
+            task._task.save(update_fields=["status", "completed_at"])
             self.project.completed_tasks += 1
             self.project.save(update_fields=["completed_tasks"])
 
             EVENT = "TASK_COMPLETED"
+        else:
+            task.status = task_status
         
         project_member = task.get_assigned_members()
         # get current user if not assigned, assign to user making the move

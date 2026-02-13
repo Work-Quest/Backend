@@ -31,9 +31,3 @@ class ProjectBossSerializer(serializers.ModelSerializer):
 
 
 
-
-
-
-
-
-
