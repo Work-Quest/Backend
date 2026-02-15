@@ -39,6 +39,14 @@ class TaskLog(models.Model):
         KILL_BOSS = "KILL_BOSS"
         KILL_PLAYER = "KILL_PLAYER"
 
+        #revive
+        USER_REVIVE = "USER_REVIVE"
+        BOSS_REVIVE = "BOSS_REVIVE"
+
+        # Boss lifecycle
+        BOSS_NEXT_PHASE_SETUP = "BOSS_NEXT_PHASE_SETUP"
+
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project_id = models.UUIDField(db_index=True, blank=True, null=True)
 

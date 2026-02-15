@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from .task import Task as TaskDomain
 from api.domains.project_member import ProjectMember as ProjectMemberDomain
+from api.utils.log_payloads import task_snapshot, project_member_snapshot
 
 
 class TaskManagement:
@@ -50,6 +51,8 @@ class TaskManagement:
             payload={
                 "task_id": str(new_task.task_id),
                 "task_priority_snapshot": int(new_task.priority or 0),
+                "task": task_snapshot(new_task),
+                "actor": project_member_snapshot(project_member),
             },
         )
         return new_task_domain
@@ -96,6 +99,8 @@ class TaskManagement:
             payload={
                 "task_id": str(task.task_id),
                 "task_priority_snapshot": int(task.priority or 0),
+                "task": task_snapshot(task),
+                "actor": project_member_snapshot(project_member),
             },
         )
         return task
@@ -131,11 +136,15 @@ class TaskManagement:
                 "task_id": str(task.task_id),
                 "deadline": (task.deadline.isoformat() if task.deadline else None),
                 "complete_at": (task.completed_at.isoformat() if task.completed_at else None),
+                "task": task_snapshot(task),
+                "actor": project_member_snapshot(mover),
             }
         else:
             payload = {
                 "task_id": str(task.task_id),
                 "task_priority_snapshot": int(task.priority or 0),
+                "task": task_snapshot(task),
+                "actor": project_member_snapshot(mover),
             }
         TaskLog.write(
             project_id=self.project.project_id,
@@ -164,6 +173,8 @@ class TaskManagement:
                 payload={
                     "task_id": str(task.task_id),
                     "task_priority_snapshot": int(task.priority or 0),
+                    "task": task_snapshot(task),
+                    "actor": project_member_snapshot(project_member),
                 },
             )
             
@@ -208,6 +219,9 @@ class TaskManagement:
                 payload={
                     "task_id": str(task_domain.task_id),
                     "receiver_id": str(project_member.project_member_id),
+                    "task": task_snapshot(task_domain),
+                    "actor": project_member_snapshot(assigned_project_member),
+                    "receiver": project_member_snapshot(project_member),
                 },
             )
 
@@ -237,6 +251,9 @@ class TaskManagement:
                 payload={
                     "task_id": str(task_domain.task_id),
                     "receiver_id": str(project_member.project_member_id),
+                    "task": task_snapshot(task_domain),
+                    "actor": project_member_snapshot(unassigned_project_member),
+                    "receiver": project_member_snapshot(project_member),
                 },
             )
             return deleted_count > 0

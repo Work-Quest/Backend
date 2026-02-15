@@ -7,6 +7,7 @@ from django.utils import timezone
 from api.models.Task import Task
 from api.models.TaskLog import TaskLog
 from api.services.game_service import GameService
+from api.utils.log_payloads import task_snapshot
 
 
 ACTIVE_TASK_STATUSES = ("backlog", "todo", "inProgress")
@@ -103,6 +104,7 @@ class Command(BaseCommand):
                         event_type=TaskLog.EventType.BOSS_ATTACK,
                         payload={
                             "task_id": str(locked.task_id),
+                            "task": task_snapshot(locked),
                             "damage": 0,
                             "player_hp": None,
                         },

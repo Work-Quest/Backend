@@ -10,6 +10,7 @@ from api.models import TaskLog
 from api.domains.review import Review
 from api.dtos.review_dto import TaskFacts
 import math
+from api.utils.log_payloads import task_snapshot, project_member_snapshot
 
 class Game:
     def __init__(self, project_domain):
@@ -95,21 +96,24 @@ class Game:
         return self._boss
 
     def next_phase_boss_setup(self):
+        """
+        Setup the next phase for a normal boss.
+
+        Returns a dict with phase/setup details when advanced, otherwise None.
+        """
         add_logs = TaskLog.objects.filter(
             project_id=self._project.project.project_id,
             actor_type=TaskLog.ActorType.USER,
             event_type=TaskLog.EventType.TASK_CREATED,
-            created_at__gt=self._boss.updated_at,
+            created_at__gt=self.boss.updated_at,
         )
 
         delete_logs = TaskLog.objects.filter(
             project_id=self._project.project.project_id,
             actor_type=TaskLog.ActorType.USER,
             event_type=TaskLog.EventType.TASK_DELETED,
-            created_at__gt=self._boss.updated_at,
+            created_at__gt=self.boss.updated_at,
         )
-
-        print(f"add_logs count: {add_logs.count()}, delete_logs count: {delete_logs.count()}")  # Debugging statement
 
         if not add_logs.exists():
             return None
@@ -117,8 +121,6 @@ class Game:
         add_value = sum(int((log.payload or {}).get("task_priority_snapshot") or 0) for log in add_logs)
         delete_value = sum(int((log.payload or {}).get("task_priority_snapshot") or 0) for log in delete_logs)
         net_change = add_value - delete_value
-
-        print(f"Total added priority: {add_value}, total deleted priority: {delete_value}, net change: {net_change}")  # Debugging statement
         # Preserve existing gate: only advance phase if the net task-priority increased.
         if net_change <= 0:
             return None
@@ -133,13 +135,23 @@ class Game:
         hp_change = int(boss_hp_units * self.BASE_BOSS_HP)
         
         # set up boss next phase
+        from_phase = int(self.boss.phase or 1)
         self.boss.max_hp = hp_change
         self.boss.hp = hp_change
         self.boss.phase += 1
 
         self.boss.updated_at = timezone.now()
 
-        return  self.boss.project_boss
+        return {
+            "project_boss_id": str(self.boss.project_boss.project_boss_id),
+            "from_phase": from_phase,
+            "to_phase": int(self.boss.phase or (from_phase + 1)),
+            "boss_hp": int(self.boss.hp),
+            "boss_max_hp": int(self.boss.max_hp),
+            "net_priority_change": int(net_change),
+            "added_priority": int(add_value),
+            "deleted_priority": int(delete_value),
+        }
     
 
     def special_boss_setup(self):
@@ -231,6 +243,8 @@ class Game:
             event_type=TaskLog.EventType.USER_ATTACK,
             payload={
                 "task_id": str(task.task_id),
+                "task": task_snapshot(task),
+                "actor": project_member_snapshot(player),
                 "damage": int(round(damage)),
                 "score_recieve": int(round(score)),
                 "boss_hp": int(self.boss.hp),
@@ -240,10 +254,8 @@ class Game:
         if self.boss.hp <= 0:
             boss_type = (self.boss.boss.boss_type or "").lower()
             if boss_type == "normal":
-                next_boss = self.next_phase_boss_setup() 
-
-                print(f"Boss defeated! Next phase boss setup returned: {next_boss}")  # Debugging statement
-                if next_boss is None:
+                next_phase = self.next_phase_boss_setup()
+                if next_phase is None:
                     self.boss.die()
                     TaskLog.write(
                         project_id=self._project.project.project_id,
@@ -253,7 +265,20 @@ class Game:
                         payload={"player_id": str(player.project_member_id)},
                     )
                 else:
-                    phase_advanced = (self.boss.phase != before_phase)
+                    phase_advanced = True
+                    TaskLog.write(
+                        project_id=self._project.project.project_id,
+                        actor_type=TaskLog.ActorType.USER,
+                        actor_id=player.project_member_id,
+                        event_type=TaskLog.EventType.BOSS_NEXT_PHASE_SETUP,
+                        payload={
+                            "task_id": str(task.task_id),
+                            "task": task_snapshot(task),
+                            "trigger_player_id": str(player.project_member_id),
+                            "actor": project_member_snapshot(player),
+                            **(next_phase or {}),
+                        },
+                    )
             else:
                 self.boss.die()
                 TaskLog.write(
@@ -317,8 +342,15 @@ class Game:
                 event_type=TaskLog.EventType.BOSS_ATTACK,
                 payload={
                     "task_id": str(task.task_id),
+                    "task": task_snapshot(task),
                     "damage": int(round(damage)),
                     "player_hp": int(player.hp),
+                    # Backwards compatible keys
+                    "target_player_id": str(player.project_member_id),
+                    "target": project_member_snapshot(player),
+                    # Preferred receiver keys (consistent with other logs)
+                    "player_id": str(player.project_member_id),
+                    "player": project_member_snapshot(player),
                 },
             )
 
@@ -329,7 +361,13 @@ class Game:
                     actor_type=TaskLog.ActorType.BOSS,
                     actor_id=self.boss.project_boss.project_boss_id,
                     event_type=TaskLog.EventType.KILL_PLAYER,
-                    payload={"boss_id": str(self.boss.project_boss.project_boss_id)},
+                    payload={
+                        "boss_id": str(self.boss.project_boss.project_boss_id),
+                        "task_id": str(task.task_id),
+                        "task": task_snapshot(task),
+                        "receiver_id": str(player.project_member_id),
+                        "receiver": project_member_snapshot(player),
+                    },
                 )
     
         
@@ -578,6 +616,13 @@ class Game:
 
         player.heal(heal_amount)
 
+        task_obj = None
+        if task_id:
+            try:
+                task_obj = self._task_management.get_task(task_id)
+            except Exception:
+                task_obj = None
+
         TaskLog.write(
             project_id=self._project.project.project_id,
             actor_type=TaskLog.ActorType.USER,
@@ -585,12 +630,15 @@ class Game:
             event_type=TaskLog.EventType.HEAL,
             payload={
                 "task_id": (str(task_id) if task_id else None),
+                "task": (task_snapshot(task_obj) if task_obj else None),
                 "report_id": (str(report_id) if report_id else None),
                 "sentiment_score": (int(sentiment_score) if sentiment_score is not None else None),
                 "weighted_sentiment_score": (
                     float(weighted_sentiment_score) if weighted_sentiment_score is not None else None
                 ),
                 "receiver_id": str(player.project_member_id),
+                "actor": project_member_snapshot(healer),
+                "receiver": project_member_snapshot(player),
                 "player_hp": int(player.hp),
             },
         )
@@ -718,10 +766,36 @@ class Game:
     def player_revive(self, player_id):
         player = self._project_member_management.get_member(player_id)
         if player.status == "Alive":
-            raise ValueError("player is currently Arrive")
-        player.score = player.score/2
+            raise ValueError("player is currently alive")
+        before_score = int(player.score or 0)
+        after_score = int(before_score // 2)
+        player.score = after_score
         player.hp = player.max_hp
         player.status = "Alive"
+
+        TaskLog.write(
+            project_id=self._project.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            actor_id=player.project_member_id,
+            event_type=TaskLog.EventType.USER_REVIVE,
+            payload={
+                "player_id": str(player.project_member_id),
+                "actor": project_member_snapshot(player),
+                "score_before": before_score,
+                "score_after": after_score,
+                "player_hp": int(player.hp),
+                "player_max_hp": int(player.max_hp),
+            },
+        )
+
+        return {
+            "player_id": str(player.project_member_id),
+            "score_before": before_score,
+            "score_after": after_score,
+            "hp": int(player.hp),
+            "max_hp": int(player.max_hp),
+            "status": player.status,
+        }
 
     
 

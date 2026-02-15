@@ -15,6 +15,7 @@ from api.models import (
     Effect,
 )
 from api.services.ai_service import AIService
+from api.utils.log_payloads import task_snapshot, project_member_snapshot
 
 
 class ReviewService:
@@ -104,7 +105,10 @@ class ReviewService:
                     event_type=TaskLog.EventType.TASK_REVIEW,
                     payload={
                         "task_id": str(task_domain.task_id),
+                        "task": task_snapshot(task_domain),
                         "receiver_id": str(receiver_member_model.project_member_id),
+                        "actor": project_member_snapshot(reviewer_member_model),
+                        "receiver": project_member_snapshot(receiver_member_model),
                         "sentiment_score": int(sentiment_score),
                     },
                 )

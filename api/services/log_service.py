@@ -12,9 +12,24 @@ class TaskLogQueryService:
         return TaskLog.objects.all()
 
     def get_game_logs(self, project_id: str) -> list[ProjectLogReadDTO]:
+        # Only return game-related events for the "game logs" endpoint.
+        # (Avoid task lifecycle noise like TASK_CREATED / TASK_UPDATED / etc.)
+        allowed_event_types = (
+            TaskLog.EventType.USER_ATTACK,
+            TaskLog.EventType.BOSS_ATTACK,
+            # TaskLog.EventType.HEAL,
+            # TaskLog.EventType.KILL_BOSS,
+            # TaskLog.EventType.KILL_PLAYER,
+            # TaskLog.EventType.USER_REVIVE,
+            # TaskLog.EventType.BOSS_REVIVE,
+           
+            # Boss progression.
+            # TaskLog.EventType.BOSS_NEXT_PHASE_SETUP,
+        )
         logs = (
             self._base_queryset()
             .filter(project_id=project_id)
+            .filter(event_type__in=allowed_event_types)
             .order_by("-created_at")
         )
 
