@@ -109,6 +109,8 @@ class Game:
             created_at__gt=self._boss.updated_at,
         )
 
+        print(f"add_logs count: {add_logs.count()}, delete_logs count: {delete_logs.count()}")  # Debugging statement
+
         if not add_logs.exists():
             return None
 
@@ -116,6 +118,7 @@ class Game:
         delete_value = sum(int((log.payload or {}).get("task_priority_snapshot") or 0) for log in delete_logs)
         net_change = add_value - delete_value
 
+        print(f"Total added priority: {add_value}, total deleted priority: {delete_value}, net change: {net_change}")  # Debugging statement
         # Preserve existing gate: only advance phase if the net task-priority increased.
         if net_change <= 0:
             return None
@@ -168,6 +171,9 @@ class Game:
         player_id : ID of the player who attacks
         task : Task that player use to attack boss (Task domain object)
         """       
+        before_phase = self.boss.phase
+        phase_advanced = False
+
         player = self._project_member_management.get_member(player_id)
         if not player :
             raise ValueError("user not exist in this project")
@@ -232,8 +238,11 @@ class Game:
         )
         
         if self.boss.hp <= 0:
-            if self.boss.boss.boss_type == "normal":
+            boss_type = (self.boss.boss.boss_type or "").lower()
+            if boss_type == "normal":
                 next_boss = self.next_phase_boss_setup() 
+
+                print(f"Boss defeated! Next phase boss setup returned: {next_boss}")  # Debugging statement
                 if next_boss is None:
                     self.boss.die()
                     TaskLog.write(
@@ -243,6 +252,8 @@ class Game:
                         event_type=TaskLog.EventType.KILL_BOSS,
                         payload={"player_id": str(player.project_member_id)},
                     )
+                else:
+                    phase_advanced = (self.boss.phase != before_phase)
             else:
                 self.boss.die()
                 TaskLog.write(
@@ -261,7 +272,9 @@ class Game:
             "damage": damage,
             "score": score,
             "boss_hp": self._boss.hp,
-            "boss_max_hp": self._boss.max_hp
+            "boss_max_hp": self._boss.max_hp,
+            "boss_phase": self.boss.phase,
+            "boss_phase_advanced": phase_advanced,
         } 
 
     def boss_attack(self, task):

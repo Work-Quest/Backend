@@ -146,6 +146,8 @@ class GameService:
 
         boss_hp = attacks[-1].get("boss_hp")
         boss_max_hp = attacks[-1].get("boss_max_hp")
+        boss_phase = attacks[-1].get("boss_phase")
+        boss_phase_advanced = any(bool(a.get("boss_phase_advanced")) for a in attacks)
 
         return {
             "task_id": str(task.task_id),
@@ -154,6 +156,8 @@ class GameService:
             "total_damage": total_damage,
             "boss_hp": boss_hp,
             "boss_max_hp": boss_max_hp,
+            "boss_phase": boss_phase,
+            "boss_phase_advanced": boss_phase_advanced,
         }
 
     def boss_attack(self, project_id, task_id):
