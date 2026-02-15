@@ -1,5 +1,5 @@
 from django.db.models import QuerySet
-from api.dtos.log_dto import GameLogReadDTO
+from api.dtos.log_dto import ProjectLogReadDTO
 from api.models import TaskLog
 
 
@@ -9,28 +9,23 @@ class TaskLogQueryService:
     """
 
     def _base_queryset(self) -> QuerySet:
-        return TaskLog.objects.select_related(
-            "task",
-            "task__project",
-        )
+        return TaskLog.objects.all()
 
-    def get_game_logs(self, project_id: int) -> list[GameLogReadDTO]:
+    def get_game_logs(self, project_id: str) -> list[ProjectLogReadDTO]:
         logs = (
             self._base_queryset()
-            .filter(task__project_id=project_id)
+            .filter(project_id=project_id)
             .order_by("-created_at")
         )
 
         return [
-            GameLogReadDTO(
-                task_id=log.task_id,
-                project_member_id=log.project_member_id,
-                received_project_member_id=log.recieved_project_member_id,
-                project_boss_id=log.project_boss_id,
-                action_type=log.action_type,
-                event=log.event,
-                damage_point=log.damage_point,
-                score_change=log.score_change,
+            ProjectLogReadDTO(
+                id=str(log.id),
+                project_id=str(log.project_id),
+                actor_type=log.actor_type,
+                actor_id=(str(log.actor_id) if log.actor_id else None),
+                event_type=log.event_type,
+                payload=(log.payload or {}),
                 created_at=log.created_at,
             )
             for log in logs

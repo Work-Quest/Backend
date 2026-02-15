@@ -85,9 +85,10 @@ class Command(BaseCommand):
                     if not locked.assigned_members.exists():
                         continue
                     if TaskLog.objects.filter(
-                        task=locked,
-                        action_type=TaskLog.ActionType.BOSS,
-                        event=TaskLog.Event.BOSS_ATTACK,
+                        project_id=locked.project_id,
+                        actor_type=TaskLog.ActorType.SYSTEM,
+                        event_type=TaskLog.EventType.BOSS_ATTACK,
+                        payload__task_id=str(locked.task_id),
                     ).exists():
                         continue
 
@@ -95,10 +96,16 @@ class Command(BaseCommand):
                     attacked += 1
 
                     # Marker log so we don't re-attack the same overdue task on the next run.
-                    TaskLog.objects.create(
-                        task=locked,
-                        action_type=TaskLog.ActionType.BOSS,
-                        event=TaskLog.Event.BOSS_ATTACK,
+                    TaskLog.write(
+                        project_id=locked.project_id,
+                        actor_type=TaskLog.ActorType.SYSTEM,
+                        actor_id=None,
+                        event_type=TaskLog.EventType.BOSS_ATTACK,
+                        payload={
+                            "task_id": str(locked.task_id),
+                            "damage": 0,
+                            "player_hp": None,
+                        },
                     )
             except Exception as e:
                 failed += 1

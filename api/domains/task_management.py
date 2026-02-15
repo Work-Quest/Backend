@@ -41,15 +41,17 @@ class TaskManagement:
         self.project.total_tasks += 1
         self.project.save()
 
-        project_member = ProjectMember.objects.get(
-                        user=user, project=self.project)
-
-        log = TaskLog.objects.create(
-            project_member=project_member,
-            task=new_task,
-            action_type="USER",
-            event="TASK_CREATED"
-        )   
+        project_member = ProjectMember.objects.get(user=user, project=self.project)
+        TaskLog.write(
+            project_id=self.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            actor_id=project_member.project_member_id,
+            event_type=TaskLog.EventType.TASK_CREATED,
+            payload={
+                "task_id": str(new_task.task_id),
+                "task_priority_snapshot": int(new_task.priority or 0),
+            },
+        )
         return new_task_domain
 
     def get_task(self, task_id):
@@ -68,7 +70,7 @@ class TaskManagement:
             return None
         
         
-    def edit_task(self, task_id, task_data):
+    def edit_task(self, task_id, task_data, user):
         task = self.get_task(task_id)
         if not task:
             return None
@@ -85,10 +87,21 @@ class TaskManagement:
             task.deadline = task_data["deadline"]
 
         self._tasks = None
+        project_member = ProjectMember.objects.get(user=user, project=self.project)
+        TaskLog.write(
+            project_id=self.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            actor_id=project_member.project_member_id,
+            event_type=TaskLog.EventType.TASK_UPDATED,
+            payload={
+                "task_id": str(task.task_id),
+                "task_priority_snapshot": int(task.priority or 0),
+            },
+        )
         return task
     
     def move_task(self, task_id, task_data, user):
-        EVENT = "TASK_UPDATED"
+        EVENT = TaskLog.EventType.TASK_UPDATED
         task = self.get_task(task_id)
         if not task:
             return None
@@ -108,28 +121,29 @@ class TaskManagement:
             self.project.completed_tasks += 1
             self.project.save(update_fields=["completed_tasks"])
 
-            EVENT = "TASK_COMPLETED"
+            EVENT = TaskLog.EventType.TASK_COMPLETED
         else:
             task.status = task_status
         
-        project_member = task.get_assigned_members()
-        # get current user if not assigned, assign to user making the move
-        if not project_member:
-            # task.get_assigned_members() returns ProjectMember *domain* objects,
-            # so keep the same shape here.
-            project_member = [
-                ProjectMemberDomain(
-                    ProjectMember.objects.get(user=user, project=self.project)
-                )
-            ]
-
-        for i in project_member:
-            log = TaskLog.objects.create(
-                project_member=i.project_member,
-                task=task._task,
-                action_type="USER",
-                event=EVENT
-            )   
+        mover = ProjectMember.objects.get(user=user, project=self.project)
+        if EVENT == TaskLog.EventType.TASK_COMPLETED:
+            payload = {
+                "task_id": str(task.task_id),
+                "deadline": (task.deadline.isoformat() if task.deadline else None),
+                "complete_at": (task.completed_at.isoformat() if task.completed_at else None),
+            }
+        else:
+            payload = {
+                "task_id": str(task.task_id),
+                "task_priority_snapshot": int(task.priority or 0),
+            }
+        TaskLog.write(
+            project_id=self.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            actor_id=mover.project_member_id,
+            event_type=EVENT,
+            payload=payload,
+        )
         
         return task
 
@@ -142,12 +156,16 @@ class TaskManagement:
             
             project_member = ProjectMember.objects.get( user=user, project=self.project)
         
-            log = TaskLog.objects.create(
-                task_priority_snapshot=task.priority,
-                project_member=project_member,
-                action_type="USER",
-                event="TASK_DELETED"
-            )   
+            TaskLog.write(
+                project_id=self.project.project_id,
+                actor_type=TaskLog.ActorType.USER,
+                actor_id=project_member.project_member_id,
+                event_type=TaskLog.EventType.TASK_DELETED,
+                payload={
+                    "task_id": str(task.task_id),
+                    "task_priority_snapshot": int(task.priority or 0),
+                },
+            )
             
             # delete any UserTask assignments that reference this task
             UserTask.objects.filter(task=task._task).delete()
@@ -182,12 +200,16 @@ class TaskManagement:
             assigned_project_member = ProjectMember.objects.get(
                 user=user, project=self.project)
 
-            log = TaskLog.objects.create(
-                project_member=assigned_project_member,
-                task=task_domain._task,
-                action_type="USER",
-                event="ASSIGN_USER"
-            )   
+            TaskLog.write(
+                project_id=self.project.project_id,
+                actor_type=TaskLog.ActorType.USER,
+                actor_id=assigned_project_member.project_member_id,
+                event_type=TaskLog.EventType.ASSIGN_USER,
+                payload={
+                    "task_id": str(task_domain.task_id),
+                    "receiver_id": str(project_member.project_member_id),
+                },
+            )
 
             return user_task, created
 
@@ -207,12 +229,16 @@ class TaskManagement:
                 user=user, project=self.project)
 
 
-            log = TaskLog.objects.create(
-                project_member=unassigned_project_member,
-                task=task_domain._task,
-                action_type="USER",
-                event="UNASSIGN_USER"
-            )   
+            TaskLog.write(
+                project_id=self.project.project_id,
+                actor_type=TaskLog.ActorType.USER,
+                actor_id=unassigned_project_member.project_member_id,
+                event_type=TaskLog.EventType.UNASSIGN_USER,
+                payload={
+                    "task_id": str(task_domain.task_id),
+                    "receiver_id": str(project_member.project_member_id),
+                },
+            )
             return deleted_count > 0
         
 

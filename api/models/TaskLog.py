@@ -1,20 +1,19 @@
-from django.db import models
+from __future__ import annotations
+
 import uuid
 
-from .ProjectBoss import ProjectBoss
-from .Task import Task
-from .ProjectMember import ProjectMember
-from .Report import Report
+from django.db import models
+
 
 class TaskLog(models.Model):
 
-    class ActionType(models.TextChoices):
-        USER = "USER"
-        BOSS = "BOSS"
-        SYSTEM = "SYSTEM"
+    class ActorType(models.TextChoices):
+        USER = "user"
+        BOSS = "boss"
+        SYSTEM = "system"
 
-    class Event(models.TextChoices):
-        # --- Task lifecycle ---
+    class EventType(models.TextChoices):
+        # Task lifecycle
         TASK_CREATED = "TASK_CREATED"
         TASK_UPDATED = "TASK_UPDATED"
         TASK_DELETED = "TASK_DELETED"
@@ -23,69 +22,54 @@ class TaskLog(models.Model):
         ASSIGN_USER = "ASSIGN_USER"
         UNASSIGN_USER = "UNASSIGN_USER"
 
-        # --- Game mechanics ---
+        # Combat
         USER_ATTACK = "USER_ATTACK"
         BOSS_ATTACK = "BOSS_ATTACK"
+        HEAL = "HEAL"
+
+        # Effects
         APPLY_BUFF = "APPLY_BUFF"
         APPLY_DEBUFF = "APPLY_DEBUFF"
+
+        # Items
         GIVE_ITEM = "GIVE_ITEM"
         USE_ITEM = "USE_ITEM"
-        HEAL = "HEAL"
+
+        # Progression
         KILL_BOSS = "KILL_BOSS"
         KILL_PLAYER = "KILL_PLAYER"
-       
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project_id = models.UUIDField(db_index=True, blank=True, null=True)
 
-    log_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actor_type = models.CharField(max_length=10, choices=ActorType.choices, default=ActorType.USER)
+    actor_id = models.UUIDField(null=True, blank=True)
 
-    task = models.ForeignKey(
-        Task,
-        on_delete=models.CASCADE,
-        related_name="logs",
-        null=True, blank=True
-    )
-
-    project_member = models.ForeignKey(
-        ProjectMember,
-        on_delete=models.CASCADE,
-        related_name="logs",
-        null=True, blank=True
-    )
-
-    received_project_member = models.ForeignKey(
-        ProjectMember,
-        on_delete=models.CASCADE,
-        related_name="received_logs",
-        null=True, blank=True
-    )
-
-    project_boss = models.ForeignKey(
-        ProjectBoss,
-        on_delete=models.CASCADE,
-        related_name="logs",
-        null=True, blank=True
-    )
-
-    report = models.ForeignKey(
-        Report,
-        on_delete=models.CASCADE,
-        related_name="report",
-        null=True, blank=True
-    )
-
-    action_type = models.CharField(
-        max_length=10,
-        choices=ActionType.choices,
-        default=ActionType.SYSTEM
-    )
-
-    event = models.CharField(
-        max_length=50,
-        choices=Event.choices,
-        default=Event.TASK_CREATED
-    )
-    task_priority_snapshot = models.IntegerField(null=True, blank=True)
-    score_change = models.IntegerField(null=True, blank=True)
-    damage_point = models.IntegerField(null=True, blank=True)
+    event_type = models.CharField(max_length=50, choices=EventType.choices, db_index=True, blank=True, null=True)
+    payload = models.JSONField(default=dict)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["project_id", "created_at"]),
+            models.Index(fields=["project_id", "event_type", "created_at"]),
+        ]
+
+    @classmethod
+    def write(
+        cls,
+        *,
+        project_id,
+        actor_type: str,
+        actor_id=None,
+        event_type: str,
+        payload: dict | None = None,
+    ) -> "TaskLog":
+        return cls.objects.create(
+            project_id=project_id,
+            actor_type=actor_type,
+            actor_id=actor_id,
+            event_type=event_type,
+            payload=(payload or {}),
+        )

@@ -95,27 +95,25 @@ class Game:
         return self._boss
 
     def next_phase_boss_setup(self):
-        add_log = TaskLog.objects.filter(
-            project_member__project=self._project.project,
-            action_type="USER",
-            event="TASK_CREATED",
-            created_at__gt=self._boss.updated_at
+        add_logs = TaskLog.objects.filter(
+            project_id=self._project.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            event_type=TaskLog.EventType.TASK_CREATED,
+            created_at__gt=self._boss.updated_at,
         )
 
-        delete_log = TaskLog.objects.filter(
-            project_member__project=self._project.project,
-            action_type="USER",
-            event="TASK_DELETED",
-            created_at__gt=self._boss.updated_at
+        delete_logs = TaskLog.objects.filter(
+            project_id=self._project.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            event_type=TaskLog.EventType.TASK_DELETED,
+            created_at__gt=self._boss.updated_at,
         )
-        
-        print("add_log:", add_log)
 
-        if not add_log:
+        if not add_logs.exists():
             return None
 
-        add_value = sum(log.task.priority for log in add_log)
-        delete_value = sum(log.task_priority_snapshot for log in delete_log)
+        add_value = sum(int((log.payload or {}).get("task_priority_snapshot") or 0) for log in add_logs)
+        delete_value = sum(int((log.payload or {}).get("task_priority_snapshot") or 0) for log in delete_logs)
         net_change = add_value - delete_value
 
         # Preserve existing gate: only advance phase if the net task-priority increased.
@@ -220,45 +218,42 @@ class Game:
         player.score = player.score + score
         self.boss.attacked(damage)
 
-        log = TaskLog.objects.create(
-                project_member=player.project_member,
-                project_boss=self.boss.project_boss,
-                action_type="USER",
-                damage_point=damage,
-                score_change=score,
-                event="ATTACK_BOSS"
-            )
+        TaskLog.write(
+            project_id=self._project.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            actor_id=player.project_member_id,
+            event_type=TaskLog.EventType.USER_ATTACK,
+            payload={
+                "task_id": str(task.task_id),
+                "damage": int(round(damage)),
+                "score_recieve": int(round(score)),
+                "boss_hp": int(self.boss.hp),
+            },
+        )
         
         if self.boss.hp <= 0:
-            if self.boss.type == "normal":
+            if self.boss.boss.boss_type == "normal":
                 next_boss = self.next_phase_boss_setup() 
                 if next_boss is None:
                     self.boss.die()
-                    log = TaskLog.objects.create(
-                        project_member=player.project_member,
-                        project_boss=self.boss.project_boss,
-                        action_type="USER",
-                        damage_point=damage,
-                        score_change=score,
-                        event="KILL_BOSS"
+                    TaskLog.write(
+                        project_id=self._project.project.project_id,
+                        actor_type=TaskLog.ActorType.USER,
+                        actor_id=player.project_member_id,
+                        event_type=TaskLog.EventType.KILL_BOSS,
+                        payload={"player_id": str(player.project_member_id)},
                     )
             else:
                 self.boss.die()
-                log = TaskLog.objects.create(
-                    project_member=player.project_member,
-                    project_boss=self.boss.project_boss,
-                    action_type="USER",
-                    damage_point=damage,
-                    score_change=score,
-                    event="KILL_BOSS"
+                TaskLog.write(
+                    project_id=self._project.project.project_id,
+                    actor_type=TaskLog.ActorType.USER,
+                    actor_id=player.project_member_id,
+                    event_type=TaskLog.EventType.KILL_BOSS,
+                    payload={"player_id": str(player.project_member_id)},
                 )
         
-        
-        # attacklog = UserAttack.object.create(
-        #     project_member=player,
-        #     damage_point=damage,
-        #     project_boss=self._boss.project_boss
-        # )
+    
         
         return {
             "player_id": player_id,
@@ -302,22 +297,26 @@ class Game:
             damage = max(damage, 0)
             player.attacked(damage)
             attacked_players.append({"player_id": player.project_member_id, "damage": damage, "hp": player.hp, "max_hp": player.max_hp  })
-            attack_log = TaskLog.objects.create(
-                project_boss=self.boss.project_boss,
-                project_member=player.project_member,
-                action_type="BOSS",
-                event="ATTACK_PLAYER",
-                damage_point=damage,
+            TaskLog.write(
+                project_id=self._project.project.project_id,
+                actor_type=TaskLog.ActorType.BOSS,
+                actor_id=self.boss.project_boss.project_boss_id,
+                event_type=TaskLog.EventType.BOSS_ATTACK,
+                payload={
+                    "task_id": str(task.task_id),
+                    "damage": int(round(damage)),
+                    "player_hp": int(player.hp),
+                },
             )
 
             if player.hp <= 0 :
                 player.die()
-                kill_log = TaskLog.objects.create(
-                    project_boss=self.boss.project_boss,
-                    project_member=player.project_member,
-                    action_type="BOSS",
-                    event="KILL_PLAYER",
-                    damage_point=damage,
+                TaskLog.write(
+                    project_id=self._project.project.project_id,
+                    actor_type=TaskLog.ActorType.BOSS,
+                    actor_id=self.boss.project_boss.project_boss_id,
+                    event_type=TaskLog.EventType.KILL_PLAYER,
+                    payload={"boss_id": str(self.boss.project_boss.project_boss_id)},
                 )
     
         
@@ -356,6 +355,8 @@ class Game:
             completed_at_ts=_ts(task.completed_at),
             deadline_ts=_ts(task.deadline),
         )
+        trust_scores = self._review.trust_policy.compute(facts, report_domain.sentiment_score)
+        weighted_sentiment_score = float(trust_scores.get("weight_sentiment_score"))
 
         # Determine receivers
         receivers = task.get_assigned_members()
@@ -402,7 +403,34 @@ class Game:
                     project_member=receiver.project_member,
                     item=item)
 
-                #Todo: add log for give item action here after refactor log schema
+                def _effect_payload(eff):
+                    if eff is None:
+                        return None
+                    return {
+                        "effect_id": str(eff.effect_id),
+                        "effect_type": eff.effect_type,
+                        "effect_value": eff.value,
+                        "effect_polarity": eff.effect_polarity,
+                        "effect_description": eff.description,
+                    }
+
+                TaskLog.write(
+                    project_id=self._project.project.project_id,
+                    actor_type=TaskLog.ActorType.USER,
+                    actor_id=reporter.project_member_id,
+                    event_type=TaskLog.EventType.GIVE_ITEM,
+                    payload={
+                        "task_id": str(task.task_id),
+                        "report_id": str(report_domain.report_id),
+                        "effect": _effect_payload(effect),
+                        "item": {
+                            "item_id": str(item.item_id),
+                            "item_name": item.name,
+                            "item_description": item.description,
+                        },
+                        "receiver_id": str(receiver.project_member_id),
+                    },
+                )
 
                 applied.append(
                     {
@@ -422,9 +450,28 @@ class Game:
                 user_effect = UserEffect.objects.create(
                     project_member=receiver.project_member,
                     effect=effect)
-                #Todo: add log for give buff/debuff action here after refactor log schema
+
+                def _effect_payload(eff):
+                    if eff is None:
+                        return None
+                    return {
+                        "effect_id": str(eff.effect_id),
+                        "effect_type": eff.effect_type,
+                        "effect_value": eff.value,
+                        "effect_polarity": eff.effect_polarity,
+                        "effect_description": eff.description,
+                    }
+
                 if effect.effect_type == "HEAL":
-                    response = self.player_heal(reporter.project_member_id, receiver.project_member_id, effect.value)
+                    response = self.player_heal(
+                        reporter.project_member_id,
+                        receiver.project_member_id,
+                        effect.value,
+                        task_id=task.task_id,
+                        report_id=report_domain.report_id,
+                        sentiment_score=report_domain.sentiment_score,
+                        weighted_sentiment_score=weighted_sentiment_score,
+                    )
                     user_effect.delete()
                     applied.append({
                         "reporter_id": str(reporter.project_member_id),
@@ -442,6 +489,23 @@ class Game:
                         "heal" : response
                     })
                 else:
+                    event_type = (
+                        TaskLog.EventType.APPLY_BUFF
+                        if str(effect.effect_polarity).upper() == "GOOD"
+                        else TaskLog.EventType.APPLY_DEBUFF
+                    )
+                    TaskLog.write(
+                        project_id=self._project.project.project_id,
+                        actor_type=TaskLog.ActorType.USER,
+                        actor_id=reporter.project_member_id,
+                        event_type=event_type,
+                        payload={
+                            "task_id": str(task.task_id),
+                            "report_id": str(report_domain.report_id),
+                            "effect": _effect_payload(effect),
+                            "receiver_id": str(receiver.project_member_id),
+                        },
+                    )
                     applied.append(
                         {
                             "reporter_id": str(reporter.project_member_id),
@@ -469,7 +533,17 @@ class Game:
             "applied": applied,
         }
 
-    def player_heal(self, Healer_id, player_id, heal_value):
+    def player_heal(
+        self,
+        Healer_id,
+        player_id,
+        heal_value,
+        *,
+        task_id=None,
+        report_id=None,
+        sentiment_score=None,
+        weighted_sentiment_score=None,
+    ):
         """
         healer_id : ID of the player who performs the heal
         player_id : ID of the player who heals
@@ -491,14 +565,22 @@ class Game:
 
         player.heal(heal_amount)
 
-        #Todo: add log after refactor log schema
-        # log = TaskLog.objects.create(
-        #         project_member=healer.project_member,
-        #         received_project_member=player.project_member,
-        #         action_type="USER",
-        #         score_change=int(heal_value * self.BASE_SCORE),
-        #         event="HEAL"
-        #     )
+        TaskLog.write(
+            project_id=self._project.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            actor_id=healer.project_member_id,
+            event_type=TaskLog.EventType.HEAL,
+            payload={
+                "task_id": (str(task_id) if task_id else None),
+                "report_id": (str(report_id) if report_id else None),
+                "sentiment_score": (int(sentiment_score) if sentiment_score is not None else None),
+                "weighted_sentiment_score": (
+                    float(weighted_sentiment_score) if weighted_sentiment_score is not None else None
+                ),
+                "receiver_id": str(player.project_member_id),
+                "player_hp": int(player.hp),
+            },
+        )
         
         return {
             "healer_id": Healer_id,
@@ -533,6 +615,35 @@ class Game:
 
         # consume item first (so it can't be used twice)
         user_item.delete()
+
+        def _effect_payload(effect):
+            if effect is None:
+                return None
+            return {
+                "effect_id": str(effect.effect_id),
+                "effect_type": effect.effect_type,
+                "effect_value": effect.value,
+                "effect_polarity": effect.effect_polarity,
+                "effect_description": effect.description,
+            }
+
+        TaskLog.write(
+            project_id=self._project.project.project_id,
+            actor_type=TaskLog.ActorType.USER,
+            actor_id=player.project_member_id,
+            event_type=TaskLog.EventType.USE_ITEM,
+            payload={
+                "task_id": None,
+                "report_id": None,
+                "effect": _effect_payload(effect),
+                "item": {
+                    "item_id": str(item.item_id),
+                    "item_name": item.name,
+                    "item_description": item.description,
+                },
+                "receiver_id": str(player.project_member_id),
+            },
+        )
 
         # item can exist without effects
         if effect is None:
