@@ -6,6 +6,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from .task import Task as TaskDomain
+from api.domains.project_member import ProjectMember as ProjectMemberDomain
 
 
 class TaskManagement:
@@ -114,8 +115,13 @@ class TaskManagement:
         project_member = task.get_assigned_members()
         # get current user if not assigned, assign to user making the move
         if not project_member:
-            project_member = list(ProjectMember.objects.get(
-                user=user, project=self.project))
+            # task.get_assigned_members() returns ProjectMember *domain* objects,
+            # so keep the same shape here.
+            project_member = [
+                ProjectMemberDomain(
+                    ProjectMember.objects.get(user=user, project=self.project)
+                )
+            ]
 
         for i in project_member:
             log = TaskLog.objects.create(

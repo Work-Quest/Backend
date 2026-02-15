@@ -25,6 +25,12 @@ class Game:
         self.BASE_PLAYER_DAMAGE = 1000
         self.BASE_BOSS_DAMAGE = 10
 
+        
+        self.BOSS_HP_TUNING = {
+            "priority_weight": 1.0,
+            "members_weight": 0.5,
+        }
+
         self.BASE_SCORE = 0.1
         self.BASE_SPECIAL_BOSS_HP = 5000
         self.DAMAGE_TUNING = {
@@ -75,7 +81,14 @@ class Game:
         total_priority = sum(task.priority for task in all_tasks)
         if total_priority <= 0:
             raise ValueError("Cannot setup boss: total task priority must be greater than 0")
-        boss_hp = total_priority * self.BASE_BOSS_HP
+        member_count = int(self._project.project.members.count())
+        member_count = max(member_count, 1)
+
+        boss_hp_units = (
+            (float(self.BOSS_HP_TUNING["priority_weight"]) * float(total_priority))
+            + (float(self.BOSS_HP_TUNING["members_weight"]) * float(member_count))
+        )
+        boss_hp = int(boss_hp_units * self.BASE_BOSS_HP)
         self._boss.max_hp = boss_hp
         self._boss.full_heal()
         self._boss.updated_at = timezone.now()
@@ -103,13 +116,20 @@ class Game:
 
         add_value = sum(log.task.priority for log in add_log)
         delete_value = sum(log.task_priority_snapshot for log in delete_log)
-        print(add_value)
-        print(delete_value)
         net_change = add_value - delete_value
-        hp_change = net_change * self.BASE_BOSS_HP
-        
-        if hp_change <= 0:
+
+        # Preserve existing gate: only advance phase if the net task-priority increased.
+        if net_change <= 0:
             return None
+
+        member_count = int(self._project.project.members.count())
+        member_count = max(member_count, 1)
+
+        boss_hp_units = (
+            (float(self.BOSS_HP_TUNING["priority_weight"]) * float(net_change))
+            + (float(self.BOSS_HP_TUNING["members_weight"]) * float(member_count))
+        )
+        hp_change = int(boss_hp_units * self.BASE_BOSS_HP)
         
         # set up boss next phase
         self.boss.max_hp = hp_change
@@ -183,7 +203,7 @@ class Game:
         priority_weight = self.DAMAGE_TUNING["priority"]["base"] + self.DAMAGE_TUNING["priority"]["weight"]  * priorityFactor
         time_weight = self.DAMAGE_TUNING["speed"]["base"] + self.DAMAGE_TUNING["speed"]["weight"]  * speedFactor
 
-        damage = self.BASE_DAMAGE * priority_weight * time_weight
+        damage = self.BASE_PLAYER_DAMAGE * priority_weight * time_weight
         # buff or debuff effect
 
         for user_effect in effects:
@@ -261,14 +281,14 @@ class Game:
         if task.is_completed():
             raise ValueError("Task is completed")
         
-        damage = self.BASE_BOSS_DAMAGE * (task.priority)
-
         attacked_players =  []
 
         for player in target_players:
             if player.status == "Dead":
                 continue
             effects = player.effects()
+            # Calculate damage per-player so effects don't leak across players.
+            damage = self.BASE_BOSS_DAMAGE * (task.priority)
             for user_effect in effects:
                 if user_effect.effect.effect_type == "DEFENCE_BUFF":
                     damage = damage - (user_effect.effect.value * damage)
@@ -278,6 +298,8 @@ class Game:
                     damage = damage + (user_effect.effect.value * damage)
                     # one-time effects are consumed on attack
                     player.clear_effect(user_effect)
+            # Never allow negative damage (would heal and can violate domain invariants).
+            damage = max(damage, 0)
             player.attacked(damage)
             attacked_players.append({"player_id": player.project_member_id, "damage": damage, "hp": player.hp, "max_hp": player.max_hp  })
             attack_log = TaskLog.objects.create(
