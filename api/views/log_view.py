@@ -101,6 +101,83 @@ def get_project_logs(request, project_id):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+def get_project_logs_grouped(request, project_id):
+    """
+    Get game logs grouped by:
+    - group_by=event_type (default)
+    - group_by=category
+    """
+    try:
+        group_by = (request.query_params.get("group_by") or "event_type").strip()
+        if group_by not in ("event_type", "category"):
+            return Response(
+                {"error": "Invalid group_by. Use 'event_type' or 'category'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+
+        # Check if user has access to the project
+        project = Project.objects.get(project_id=project_id)
+        domain = ProjectDomain(project)
+        if not domain.check_access(user):
+            return Response(
+                {"error": "User does not have access to this project"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        cache_svc = CacheService()
+
+        def _load() -> dict:
+            log_service = TaskLogQueryService()
+            logs = log_service.get_game_logs(project_id)
+
+            if group_by == "category":
+                groups = log_service.group_logs_by_category(logs)
+            else:
+                groups = log_service.group_logs_by_event_type(logs)
+
+            groups_data = {
+                group_key: {
+                    "count": len(group_logs),
+                    "logs": [asdict(l) for l in group_logs],
+                }
+                for group_key, group_logs in groups.items()
+            }
+
+            return {
+                "project_id": str(project_id),
+                "group_by": group_by,
+                "groups": groups_data,
+                "total_count": len(logs),
+            }
+
+        payload = cache_svc.read_through(
+            key=cache_svc.keys.project_game_logs_grouped(project_id, group_by),
+            ttl_seconds=5,
+            loader=_load,
+        )
+
+        return Response(payload, status=status.HTTP_200_OK)
+    except Project.DoesNotExist:
+        return Response(
+            {"error": "Project not found"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except BusinessUser.DoesNotExist:
+        return Response(
+            {"error": "User not found"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["GET"])
 def get_all_task_logs(request):
     """
     Get all TaskLogs (across all projects), optionally filtered by a time range start.

@@ -59,6 +59,10 @@ class CacheKeys:
     def project_game_logs(self, project_id: object) -> str:
         return self.key("log", "project_game_logs", project_id)
 
+    def project_game_logs_grouped(self, project_id: object, group_by: object) -> str:
+        # group_by: "event_type" | "category"
+        return self.key("log", "project_game_logs_grouped", group_by, project_id)
+
     # ---- Tasks ----
     def project_tasks(self, project_id: object, user_id: object) -> str:
         return self.key("task", "project_tasks", project_id, user_id)

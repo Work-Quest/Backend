@@ -12,11 +12,23 @@ class CookieJWTAuthentication(JWTAuthentication):
                 validated_token = self.get_validated_token(access_token)
                 user = self.get_user(validated_token)
                 return user, validated_token
-            except (InvalidToken, AuthenticationFailed):
+            except (TokenError, InvalidToken, AuthenticationFailed):
                 # Important: for endpoints like login/register that are `AllowAny`, we
                 # must not fail the whole request just because a stale/invalid cookie
                 # is present. Treat as anonymous and allow permissions to decide.
-                return None
+                #
+                # Also: continue to try header-based auth below (e.g. internal services / ETL).
+                pass
+
+        # Fallback: allow standard SimpleJWT header auth (Authorization: Bearer <token>)
+        # This enables non-browser clients that don't have access to HTTP-only cookies.
+        try:
+            header_auth = super().authenticate(request)
+            if header_auth is not None:
+                return header_auth
+        except (TokenError, InvalidToken, AuthenticationFailed):
+            # Be permissive (same reasoning as above); let permissions decide.
+            pass
         
         # Try refresh token
         refresh_token = request.COOKIES.get("refresh")

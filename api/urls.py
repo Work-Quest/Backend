@@ -58,7 +58,8 @@ urlpatterns = [
     path("game/project/<uuid:project_id>/status/", get_game_status, name="get_game_status"),
     # ----- Log URLs -----
     path("project/<uuid:project_id>/logs/game/", get_project_logs, name="get_project_logs"),
-    path("logs/", get_all_task_logs, name="get_all_task_logs"),
+    path("project/<uuid:project_id>/logs/game/grouped/", get_project_logs_grouped, name="get_project_logs_grouped"),
+    path("internal/logs/", get_all_task_logs, name="get_all_task_logs"),
     # ----- Review URLs -----
     path("project/<uuid:project_id>/review/report/", review_report, name="review_report"),
     path("project/<uuid:project_id>/review/get_all_review/", get_all_review, name="get_all_review"),
