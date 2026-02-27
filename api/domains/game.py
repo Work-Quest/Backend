@@ -206,7 +206,7 @@ class Game:
         
         
         # normalize 
-        priorityFactor = task.priority / 4
+        # priorityFactor = task.priority / 4
         if time_left_percent >= 0:
             speedFactor = 0.5 + 0.5 * time_left_percent
         else:
@@ -216,10 +216,10 @@ class Game:
 
         speedFactor = max(speedFactor, 0.1)
         # weight
-        priority_weight = self.DAMAGE_TUNING["priority"]["base"] + self.DAMAGE_TUNING["priority"]["weight"]  * priorityFactor
+        # priority_weight = self.DAMAGE_TUNING["priority"]["base"] + self.DAMAGE_TUNING["priority"]["weight"]  * priorityFactor
         time_weight = self.DAMAGE_TUNING["speed"]["base"] + self.DAMAGE_TUNING["speed"]["weight"]  * speedFactor
 
-        damage = self.BASE_PLAYER_DAMAGE * priority_weight * time_weight
+        damage = self.BASE_PLAYER_DAMAGE * task.priority * time_weight
         # buff or debuff effect
 
         for user_effect in effects:

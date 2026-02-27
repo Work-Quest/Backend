@@ -45,6 +45,31 @@ class TaskLogQueryService:
             )
             for log in logs
         ]
+
+    def get_all_logs(self, *, time_begin=None) -> list[ProjectLogReadDTO]:
+        """
+        Get all TaskLogs, optionally filtered by created_at >= time_begin.
+
+        Args:
+            time_begin: datetime (timezone-aware recommended). If provided, filters logs by created_at__gte.
+        """
+        logs = self._base_queryset()
+        if time_begin is not None:
+            logs = logs.filter(created_at__gte=time_begin)
+        logs = logs.order_by("-created_at")
+
+        return [
+            ProjectLogReadDTO(
+                id=str(log.id),
+                project_id=(str(log.project_id) if log.project_id else None),
+                actor_type=log.actor_type,
+                actor_id=(str(log.actor_id) if log.actor_id else None),
+                event_type=log.event_type,
+                payload=(log.payload or {}),
+                created_at=log.created_at,
+            )
+            for log in logs
+        ]
     # # ---------- ETL ----------
     # def get_logs_for_etl(
     #     self,

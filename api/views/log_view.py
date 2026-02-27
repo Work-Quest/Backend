@@ -1,5 +1,9 @@
 # views/log_view.py
 from dataclasses import asdict
+from datetime import datetime, time
+
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -9,6 +13,32 @@ from api.models import BusinessUser, Project
 from api.services.log_service import TaskLogQueryService
 from api.domains.project import Project as ProjectDomain
 from api.services.cache_service import CacheService
+
+
+def _parse_time_begin(raw: str | None) -> datetime | None:
+    """
+    Parse a `time_begin` query param into a timezone-aware datetime (UTC by default settings).
+
+    Accepts:
+    - ISO 8601 datetime (e.g. 2026-02-27T12:34:56Z / +00:00)
+    - Date only (e.g. 2026-02-27) -> treated as 00:00:00 of that date
+    """
+    if raw is None:
+        return None
+    raw = raw.strip()
+    if raw == "":
+        return None
+
+    dt = parse_datetime(raw)
+    if dt is None:
+        d = parse_date(raw)
+        if d is None:
+            raise ValueError("Invalid time_begin. Use ISO datetime (e.g. 2026-02-27T00:00:00Z) or date (e.g. 2026-02-27).")
+        dt = datetime.combine(d, time.min)
+
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt, timezone.get_current_timezone())
+    return dt
 
 
 @api_view(["GET"])
@@ -67,4 +97,35 @@ def get_project_logs(request, project_id):
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_all_task_logs(request):
+    """
+    Get all TaskLogs (across all projects), optionally filtered by a time range start.
+
+    Query params:
+    - time_begin: ISO 8601 datetime or date string; filters created_at >= time_begin
+    """
+    try:
+        time_begin_raw = request.query_params.get("time_begin")
+        time_begin = _parse_time_begin(time_begin_raw)
+
+        log_service = TaskLogQueryService()
+        logs = log_service.get_all_logs(time_begin=time_begin)
+        logs_data = [asdict(log) for log in logs]
+
+        return Response(
+            {
+                "time_begin": (time_begin.isoformat() if time_begin else None),
+                "logs": logs_data,
+                "count": len(logs_data),
+            },
+            status=status.HTTP_200_OK,
+        )
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
