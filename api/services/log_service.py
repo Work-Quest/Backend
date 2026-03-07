@@ -18,14 +18,6 @@ class TaskLogQueryService:
         allowed_event_types = (
             TaskLog.EventType.USER_ATTACK,
             TaskLog.EventType.BOSS_ATTACK,
-            # TaskLog.EventType.HEAL,
-            # TaskLog.EventType.KILL_BOSS,
-            # TaskLog.EventType.KILL_PLAYER,
-            # TaskLog.EventType.USER_REVIVE,
-            # TaskLog.EventType.BOSS_REVIVE,
-           
-            # Boss progression.
-            # TaskLog.EventType.BOSS_NEXT_PHASE_SETUP,
         )
         logs = (
             self._base_queryset()
@@ -121,7 +113,7 @@ class TaskLogQueryService:
         """
         logs = self._base_queryset()
         if time_begin is not None:
-            logs = logs.filter(created_at__gte=time_begin)
+            logs = logs.filter(created_at__gt=time_begin)
         logs = logs.order_by("-created_at")
 
         return [
@@ -136,29 +128,4 @@ class TaskLogQueryService:
             )
             for log in logs
         ]
-    # # ---------- ETL ----------
-    # def get_logs_for_etl(
-    #     self,
-    #     *,
-    #     since: datetime | None = None,
-    #     until: datetime | None = None,
-    # ) -> list[TaskLogETLDTO]:
-    #     qs = self._base_queryset()
-
-    #     if since:
-    #         qs = qs.filter(created_at__gte=since)
-    #     if until:
-    #         qs = qs.filter(created_at__lt=until)
-
-    #     return [
-    #         TaskLogETLDTO(
-    #             task_id=log.task_id,
-    #             project_id=log.task.project_id,
-    #             actor_id=log.actor_id,
-    #             action=log.action,
-    #             damage=log.damage,
-    #             priority_snapshot=log.priority_snapshot,
-    #             created_at=log.created_at,
-    #         )
-    #         for log in qs.iterator(chunk_size=2000)
-    #     ]
+  

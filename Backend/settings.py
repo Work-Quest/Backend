@@ -270,6 +270,9 @@ RESEND_TIMEOUT_SECONDS = int(os.getenv("RESEND_TIMEOUT_SECONDS", "10"))
 # Used to generate links inside emails (optional).
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
+# AI Service
+AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:5000")
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 

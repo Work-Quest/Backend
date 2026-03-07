@@ -6,6 +6,7 @@ from api.views.game_view import *
 from api.views.log_view import *
 from api.views.review_view import *
 from api.views.ai_view import *
+from api.views.feedback_view import *
 import rest_framework.decorators
 
 urlpatterns = [
@@ -31,6 +32,7 @@ urlpatterns = [
     path("project/<uuid:project_id>/invite/", batch_invite, name="batch_invite"),
     path("project/invite/accept/", accept_invite, name="accept_invite"),
     path("project/<uuid:project_id>/members/",get_all_project_members,name="get_all_project_members"),
+    path("project/<uuid:project_id>/feedback/", get_project_feedback, name="get_project_feedback"),
     # ----- Task URLs -----
     path("project/<uuid:project_id>/tasks/", task_list, name="task_list"),
     path("project/<uuid:project_id>/tasks/create/", task_create, name="task_create"),
