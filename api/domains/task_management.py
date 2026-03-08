@@ -218,9 +218,9 @@ class TaskManagement:
                 event_type=TaskLog.EventType.ASSIGN_USER,
                 payload={
                     "task_id": str(task_domain.task_id),
-                    "receiver_id": str(project_member.project_member_id),
+                    "receiver_id": project_member_snapshot(assigned_project_member),
                     "task": task_snapshot(task_domain),
-                    "actor": project_member_snapshot(assigned_project_member),
+                    "actor":  str(project_member.project_member_id),
                     "receiver": project_member_snapshot(project_member),
                 },
             )
