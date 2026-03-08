@@ -1,3 +1,4 @@
+from collections import defaultdict
 from django.db.models import QuerySet
 from api.dtos.log_dto import ProjectLogReadDTO
 from api.models import TaskLog
@@ -17,14 +18,6 @@ class TaskLogQueryService:
         allowed_event_types = (
             TaskLog.EventType.USER_ATTACK,
             TaskLog.EventType.BOSS_ATTACK,
-            # TaskLog.EventType.HEAL,
-            # TaskLog.EventType.KILL_BOSS,
-            # TaskLog.EventType.KILL_PLAYER,
-            # TaskLog.EventType.USER_REVIVE,
-            # TaskLog.EventType.BOSS_REVIVE,
-           
-            # Boss progression.
-            # TaskLog.EventType.BOSS_NEXT_PHASE_SETUP,
         )
         logs = (
             self._base_queryset()
@@ -46,6 +39,71 @@ class TaskLogQueryService:
             for log in logs
         ]
 
+    # ---------- Grouping helpers ----------
+    @staticmethod
+    def group_logs_by_event_type(logs: list[ProjectLogReadDTO]) -> dict[str, list[ProjectLogReadDTO]]:
+        """
+        Group logs into buckets keyed by event_type (falls back to 'UNKNOWN').
+        """
+        grouped: dict[str, list[ProjectLogReadDTO]] = defaultdict(list)
+        for log in logs:
+            grouped[log.event_type or "UNKNOWN"].append(log)
+        return dict(grouped)
+
+    @staticmethod
+    def group_logs_by_category(logs: list[ProjectLogReadDTO]) -> dict[str, list[ProjectLogReadDTO]]:
+        """
+        Group logs into higher-level categories based on event_type.
+        """
+        category_event_types: dict[str, set[str]] = {
+            "TASK_LIFECYCLE": {
+                TaskLog.EventType.TASK_CREATED,
+                TaskLog.EventType.TASK_UPDATED,
+                TaskLog.EventType.TASK_DELETED,
+                TaskLog.EventType.TASK_COMPLETED,
+                TaskLog.EventType.TASK_REVIEW,
+                TaskLog.EventType.ASSIGN_USER,
+                TaskLog.EventType.UNASSIGN_USER,
+            },
+            "COMBAT": {
+                TaskLog.EventType.USER_ATTACK,
+                TaskLog.EventType.BOSS_ATTACK,
+                TaskLog.EventType.HEAL,
+            },
+            "EFFECTS": {
+                TaskLog.EventType.APPLY_BUFF,
+                TaskLog.EventType.APPLY_DEBUFF,
+            },
+            "ITEMS": {
+                TaskLog.EventType.GIVE_ITEM,
+                TaskLog.EventType.USE_ITEM,
+            },
+            "PROGRESSION": {
+                TaskLog.EventType.KILL_BOSS,
+                TaskLog.EventType.KILL_PLAYER,
+            },
+            "REVIVE": {
+                TaskLog.EventType.USER_REVIVE,
+                TaskLog.EventType.BOSS_REVIVE,
+            },
+            "BOSS_LIFECYCLE": {
+                TaskLog.EventType.BOSS_NEXT_PHASE_SETUP,
+            },
+        }
+
+        def _category_for(event_type: str | None) -> str:
+            if not event_type:
+                return "UNKNOWN"
+            for category, event_types in category_event_types.items():
+                if event_type in event_types:
+                    return category
+            return "OTHER"
+
+        grouped: dict[str, list[ProjectLogReadDTO]] = defaultdict(list)
+        for log in logs:
+            grouped[_category_for(log.event_type)].append(log)
+        return dict(grouped)
+
     def get_all_logs(self, *, time_begin=None) -> list[ProjectLogReadDTO]:
         """
         Get all TaskLogs, optionally filtered by created_at >= time_begin.
@@ -55,7 +113,7 @@ class TaskLogQueryService:
         """
         logs = self._base_queryset()
         if time_begin is not None:
-            logs = logs.filter(created_at__gte=time_begin)
+            logs = logs.filter(created_at__gt=time_begin)
         logs = logs.order_by("-created_at")
 
         return [
@@ -70,29 +128,4 @@ class TaskLogQueryService:
             )
             for log in logs
         ]
-    # # ---------- ETL ----------
-    # def get_logs_for_etl(
-    #     self,
-    #     *,
-    #     since: datetime | None = None,
-    #     until: datetime | None = None,
-    # ) -> list[TaskLogETLDTO]:
-    #     qs = self._base_queryset()
-
-    #     if since:
-    #         qs = qs.filter(created_at__gte=since)
-    #     if until:
-    #         qs = qs.filter(created_at__lt=until)
-
-    #     return [
-    #         TaskLogETLDTO(
-    #             task_id=log.task_id,
-    #             project_id=log.task.project_id,
-    #             actor_id=log.actor_id,
-    #             action=log.action,
-    #             damage=log.damage,
-    #             priority_snapshot=log.priority_snapshot,
-    #             created_at=log.created_at,
-    #         )
-    #         for log in qs.iterator(chunk_size=2000)
-    #     ]
+  

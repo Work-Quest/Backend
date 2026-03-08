@@ -6,6 +6,7 @@ from api.views.game_view import *
 from api.views.log_view import *
 from api.views.review_view import *
 from api.views.ai_view import *
+from api.views.feedback_view import *
 import rest_framework.decorators
 
 urlpatterns = [
@@ -31,6 +32,7 @@ urlpatterns = [
     path("project/<uuid:project_id>/invite/", batch_invite, name="batch_invite"),
     path("project/invite/accept/", accept_invite, name="accept_invite"),
     path("project/<uuid:project_id>/members/",get_all_project_members,name="get_all_project_members"),
+    path("project/<uuid:project_id>/feedback/", get_project_feedback, name="get_project_feedback"),
     # ----- Task URLs -----
     path("project/<uuid:project_id>/tasks/", task_list, name="task_list"),
     path("project/<uuid:project_id>/tasks/create/", task_create, name="task_create"),
@@ -58,7 +60,8 @@ urlpatterns = [
     path("game/project/<uuid:project_id>/status/", get_game_status, name="get_game_status"),
     # ----- Log URLs -----
     path("project/<uuid:project_id>/logs/game/", get_project_logs, name="get_project_logs"),
-    path("logs/", get_all_task_logs, name="get_all_task_logs"),
+    path("project/<uuid:project_id>/logs/game/grouped/", get_project_logs_grouped, name="get_project_logs_grouped"),
+    path("internal/logs/", get_all_task_logs, name="get_all_task_logs"),
     # ----- Review URLs -----
     path("project/<uuid:project_id>/review/report/", review_report, name="review_report"),
     path("project/<uuid:project_id>/review/get_all_review/", get_all_review, name="get_all_review"),
