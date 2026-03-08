@@ -15,7 +15,7 @@ from api.domains.project import Project as ProjectDomain
 from api.services.cache_service import CacheService
 
 
-def _parse_time_begin(raw: str | None) -> datetime | None:
+def _parse_time_begin(raw):
     """
     Parse a `time_begin` query param into a timezone-aware datetime (UTC by default settings).
 
