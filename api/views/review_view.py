@@ -8,6 +8,7 @@ from rest_framework import status
 from api.models import BusinessUser
 from api.serializers.report_serializer import UserReportResponseSerializer
 from api.services.review_service import ReviewService
+from api.services.cache_service import CacheService
 
 
 @api_view(["POST"])
@@ -29,6 +30,7 @@ def review_report(request, project_id):
         cur_user = request.user
         user = BusinessUser.objects.get(auth_user=cur_user)
         report, user_report = ReviewService().create_review_report(request.data, user, project_id)
+        CacheService().invalidate_project_logs(project_id)
         data = UserReportResponseSerializer(user_report, many=True).data
         return Response(data, status=status.HTTP_201_CREATED)
     except PermissionError as e:
