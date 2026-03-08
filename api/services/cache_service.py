@@ -21,6 +21,9 @@ class CacheKeys:
         return ":".join(safe_parts)
 
     # ---- Game ----
+    def project_boss(self, project_id: object) -> str:
+        return self.key("game", "project_boss", project_id)
+
     def boss_status(self, project_id: object) -> str:
         return self.key("game", "boss_status", project_id)
 
@@ -29,6 +32,21 @@ class CacheKeys:
 
     def game_status(self, project_id: object) -> str:
         return self.key("game", "game_status", project_id)
+
+    def all_bosses(self) -> str:
+        return self.key("game", "all_bosses")
+
+    def project_member_items(self, project_id: object, project_member_id: object) -> str:
+        return self.key("game", "project_member", "items", project_id, project_member_id)
+
+    def project_member_items_pattern(self, project_id: object) -> str:
+        return self.key("game", "project_member", "items", project_id, "*")
+
+    def project_member_status_effects(self, project_id: object, project_member_id: object) -> str:
+        return self.key("game", "project_member", "status_effects", project_id, project_member_id)
+
+    def project_member_status_effects_pattern(self, project_id: object) -> str:
+        return self.key("game", "project_member", "status_effects", project_id, "*")
 
     # ---- Projects ----
     def user_projects(self, user_id: object) -> str:
@@ -56,6 +74,10 @@ class CacheKeys:
         # wildcard task_id and user_id
         return self.key("task", "task_detail", project_id, "*", "*")
 
+     # ---- User ----
+    def user_me(self, user_id: object) -> str:
+        return self.key("user", "me", user_id)
+   
     # ---- Users ----
     def all_business_users(self) -> str:
         return self.key("user", "business_users", "all")
@@ -92,6 +114,20 @@ class CacheService:
 
         Returns number of keys deleted (0 if backend doesn't support pattern delete).
         """
+        # Preferred: django-redis adds delete_pattern() to the cache backend and
+        # handles key prefixes / versions correctly.
+        try:
+            deleter = getattr(cache, "delete_pattern", None)
+            if callable(deleter):
+                result = deleter(pattern)
+                return int(result) if result is not None else 0
+        except Exception:
+            # Fall back to manual scanning below.
+            pass
+
+        # Fallback: best-effort SCAN/DELETE via a raw Redis connection.
+        # Important: use cache.make_key() so the pattern includes Django's
+        # prefix/version (otherwise we won't match the stored keys).
         try:
             from django_redis import get_redis_connection  # type: ignore
         except Exception:
@@ -100,8 +136,9 @@ class CacheService:
         try:
             conn = get_redis_connection("default")
             deleted = 0
+            redis_pattern = cache.make_key(pattern)
             # Use SCAN to avoid blocking Redis.
-            for key in conn.scan_iter(match=pattern, count=500):
+            for key in conn.scan_iter(match=redis_pattern, count=500):
                 conn.delete(key)
                 deleted += 1
             return deleted
@@ -124,11 +161,24 @@ class CacheService:
     def invalidate_project_game(self, project_id: object) -> None:
         self.delete_many(
             [
+                self.keys.project_boss(project_id),
                 self.keys.boss_status(project_id),
                 self.keys.user_statuses(project_id),
                 self.keys.game_status(project_id),
             ]
         )
+
+    def invalidate_project_member_items(self, project_id: object, project_member_id: Optional[object] = None) -> None:
+        if project_member_id is not None:
+            self.delete(self.keys.project_member_items(project_id, project_member_id))
+            return
+        self.delete_pattern(self.keys.project_member_items_pattern(project_id))
+
+    def invalidate_project_member_status_effects(self, project_id: object, project_member_id: Optional[object] = None) -> None:
+        if project_member_id is not None:
+            self.delete(self.keys.project_member_status_effects(project_id, project_member_id))
+            return
+        self.delete_pattern(self.keys.project_member_status_effects_pattern(project_id))
 
     def invalidate_project_members(self, project_id: object) -> None:
         self.delete(self.keys.project_members(project_id))

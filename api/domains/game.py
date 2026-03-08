@@ -1,10 +1,14 @@
+from api.models.UserItem import UserItem
+from api.models.Item import Item
+from api.models.UserEffect import UserEffect
 from api.models.ProjectBoss import ProjectBoss
 from api.domains.boss import Boss as BossDomain
 from api.models.Boss import Boss
-import datetime
 import random
 from django.utils import timezone
 from api.models import TaskLog
+from api.domains.review import Review
+from api.dtos.review_dto import TaskFacts
 import math
 
 class Game:
@@ -12,6 +16,7 @@ class Game:
         self._project = project_domain
         self._task_management = project_domain.TaskManagement
         self._project_member_management = project_domain.project_member_management
+        self._review = Review()
         self._players = self._project_member_management.members
 
         self._boss = None
@@ -303,6 +308,144 @@ class Game:
             "task_id": task.task_id,
             "attacked_players": attacked_players
         }
+    
+    def player_support(self, report_domain):
+        """
+        Apply "support" from a review/report to one or more receivers.
+
+        - **Receives**: `report_domain` (expected to be `api.domains.report.Report` or a Report model-like object)
+        - **Uses**: review-domain score logic (`Review.calculate_player_score(...)`) to calculate score delta
+        - **Applies**: score gain to receiver(s)
+        """
+        if report_domain is None:
+            raise ValueError("report_domain is required")
+
+        task = self._task_management.get_task(report_domain.task_id)
+        if task is None:
+            raise ValueError("report_domain.task is required")
+       
+
+        def _ts(dt):
+            return dt.timestamp() if dt is not None else None
+
+        facts = TaskFacts(
+            priority=int(task.priority or 1),
+            created_at_ts=float(_ts(task.created_at)),
+            completed_at_ts=_ts(task.completed_at),
+            deadline_ts=_ts(task.deadline),
+        )
+
+        # Determine receivers
+        receivers = task.get_assigned_members()
+
+        # --- Score calculation (use Review domain method only) ---
+        reporter_score = int(self._review.calculate_player_score(facts, report_domain.sentiment_score))
+
+        reporter = report_domain.reporter
+        reporter.score = reporter.score + reporter_score
+
+        applied = []
+        for receiver in receivers:
+            # Only apply to living players (game rules align with heal/attack methods).
+            if getattr(receiver, "status", None) == "Dead":
+                applied.append(
+                    {
+                        "receiver_id": str(receiver.project_member_id),
+                        "applied": False,
+                        "reason": "receiver is dead",
+                    }
+                )
+                continue
+            # effect recieve
+            effect = self._review.decide_effect(facts, report_domain.sentiment_score)
+            if effect is None:
+                applied.append(
+                    {
+                        "receiver_id": str(receiver.project_member_id),
+                        "applied": False,
+                        "reason": "no effect configured",
+                    }
+                )
+                continue
+            # random whether user recieve item or effect
+            choice = ["effect", "item"]
+            rand_choice = random.choice(choice)
+            item = None
+            if effect is not None:
+                item = Item.objects.filter(effects=effect).first()
+            if item is None:
+                rand_choice = "effect"
+            if rand_choice == "item":
+                user_item = UserItem.objects.create(
+                    project_member=receiver.project_member,
+                    item=item)
+
+                #Todo: add log for give item action here after refactor log schema
+
+                applied.append(
+                    {
+                        "reporter_id": str(reporter.project_member_id),
+                        "receiver_id": str(receiver.project_member_id),
+                        "applied": True,
+                        "type" : "item",                        
+                        "received" : str(user_item.user_item_id),
+                        "item": {
+                            "item_id": str(item.item_id),
+                            "item_name": item.name,
+                            "item_description": item.description,
+                        },
+                    }
+                )
+            else: 
+                user_effect = UserEffect.objects.create(
+                    project_member=receiver.project_member,
+                    effect=effect)
+                #Todo: add log for give buff/debuff action here after refactor log schema
+                if effect.effect_type == "HEAL":
+                    response = self.player_heal(reporter.project_member_id, receiver.project_member_id, effect.value)
+                    user_effect.delete()
+                    applied.append({
+                        "reporter_id": str(reporter.project_member_id),
+                        "receiver_id": str(receiver.project_member_id),
+                        "applied": True,
+                        "type" : "effect",
+                        "received" : str(user_effect.user_effect_id),
+                        "effect": {
+                            "effect_id": str(effect.effect_id),
+                            "effect_type": effect.effect_type,
+                            "effect_value": effect.value,
+                            "effect_polarity": effect.effect_polarity,
+                            "effect_description": effect.description,
+                        },                       
+                        "heal" : response
+                    })
+                else:
+                    applied.append(
+                        {
+                            "reporter_id": str(reporter.project_member_id),
+                            "receiver_id": str(receiver.project_member_id),
+                            "applied": True,
+                            "type" : "effect",                        
+                            "received" : str(user_effect.user_effect_id),
+                            "effect": {
+                                "effect_id": str(effect.effect_id),
+                                "effect_type": effect.effect_type,
+                                "effect_value": effect.value,
+                                "effect_polarity": effect.effect_polarity,
+                                "effect_description": effect.description,
+                            }     
+                        }
+                )
+
+        return {
+            "report_id": report_domain.report_id,
+            "reporter" : {
+                            "reporter_id" : str(reporter.project_member_id),
+                            "score_recieve" : reporter_score,
+                            "total_score" : reporter.score
+                        },
+            "applied": applied,
+        }
 
     def player_heal(self, Healer_id, player_id, heal_value):
         """
@@ -322,23 +465,108 @@ class Game:
         if healer.status == "Dead":
             raise ValueError("healer is dead")
 
-        player.heal(heal_value)
+        heal_amount = player.max_hp * (heal_value/100)
 
-        player.score = player.score + (heal_value * self.BASE_SCORE)
+        player.heal(heal_amount)
 
-        log = TaskLog.objects.create(
-                project_member=healer,
-                received_project_member=player,
-                action_type="USER",
-                score_change = heal_value * self.BASE_SCORE,
-                event="PLAYER_HEALED"
-            )
+        #Todo: add log after refactor log schema
+        # log = TaskLog.objects.create(
+        #         project_member=healer.project_member,
+        #         received_project_member=player.project_member,
+        #         action_type="USER",
+        #         score_change=int(heal_value * self.BASE_SCORE),
+        #         event="HEAL"
+        #     )
         
         return {
             "healer_id": Healer_id,
             "player_id": player_id,
             "hp": player.hp,
             "max_hp": player.max_hp
+        }
+    
+
+    def player_use_item(self, player_id, item_id):
+        """
+        Consume a user's owned item and apply its effect.
+
+        Parameters
+        - player_id: ProjectMember ID (uuid string)
+        - item_id: UserItem ID (uuid string)  (kept as `item_id` for backwards compatibility)
+        """
+        player = self._project_member_management.get_member(player_id)
+        if not player:
+            raise ValueError("user not exist in this project")
+        if player.status == "Dead":
+            raise ValueError("user is dead")
+
+        # item_id is actually the owned UserItem id
+        user_item = (
+            UserItem.objects
+            .select_related("item", "item__effects")
+            .get(item_id=item_id, project_member=player.project_member)
+        )
+        item = user_item.item
+        effect = item.effects
+
+        # consume item first (so it can't be used twice)
+        user_item.delete()
+
+        # item can exist without effects
+        if effect is None:
+            return {
+                "player_id": str(player.project_member_id),
+                "item_id": str(item_id),
+                "item": {
+                    "item_id": str(item.item_id),
+                    "item_name": item.name,
+                    "item_description": item.description,
+                },
+                "effect_received": None,
+            }
+
+        # HEAL is applied immediately, not stored as a UserEffect
+        if effect.effect_type == "HEAL":
+            heal_value = int(effect.value)
+            if heal_value <= 0:
+                raise ValueError("Invalid heal amount")
+            response = self.player_heal(player_id, player_id, heal_value)
+            return {
+                "player_id": str(player.project_member_id),
+                "item_id": str(item_id),
+                "item": {
+                    "item_id": str(item.item_id),
+                    "item_name": item.name,
+                    "item_description": item.description,
+                },
+                "effect_received": {
+                    "effect_id": str(effect.effect_id),
+                    "effect_type": effect.effect_type,
+                    "effect_value": effect.value,
+                    "effect_polarity": effect.effect_polarity,
+                    "effect_description": effect.description,
+                },
+                "heal": response,
+            }
+
+        user_effect = UserEffect.objects.create(project_member=player.project_member, effect=effect)
+
+        return {
+            "player_id": str(player.project_member_id),
+            "item_id": str(item_id),
+            "item": {
+                "item_id": str(item.item_id),
+                "item_name": item.name,
+                "item_description": item.description,
+            },
+            "effect_received": {
+                "user_effect_id": str(user_effect.user_effect_id),
+                "effect_id": str(effect.effect_id),
+                "effect_type": effect.effect_type,
+                "effect_value": effect.value,
+                "effect_polarity": effect.effect_polarity,
+                "effect_description": effect.description,
+            },
         }
     
     def player_revive(self, player_id):

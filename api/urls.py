@@ -4,6 +4,8 @@ from api.views import *
 from api.views.task_view import *
 from api.views.game_view import *
 from api.views.log_view import *
+from api.views.review_view import *
+from api.views.ai_view import *
 import rest_framework.decorators
 
 urlpatterns = [
@@ -47,9 +49,18 @@ urlpatterns = [
     path("game/project/<uuid:project_id>/boss/attack/", boss_attack, name="boss_attack"),
     path("game/project/<uuid:project_id>/project_member/attack/", player_attack, name="player_attack"),
     path("game/project/<uuid:project_id>/project_member/heal/", player_heal, name="player_heal"),
+    path("game/project/<uuid:project_id>/project_member/support/", player_support, name="player_support"),
     path("game/project/<uuid:project_id>/project_member/revive/", revive, name="palyer_revive"),
     path("game/project/<uuid:project_id>/project_member/get_all_status/", get_user_statuses, name="get_user_statuses"),
+    path("game/project/<uuid:project_id>/project_member/item/", get_project_member_items, name="get_project_member_items"),
+    path("game/project/<uuid:project_id>/project_member/item/use/", use_project_member_item, name="use_project_member_item"),
+    path("game/project/<uuid:project_id>/project_member/status/effect/", get_project_member_status_effects, name="get_project_member_status_effects"),
     path("game/project/<uuid:project_id>/status/", get_game_status, name="get_game_status"),
     # ----- Log URLs -----
     path("project/<uuid:project_id>/logs/game/", get_project_logs, name="get_project_logs"),
+    # ----- Review URLs -----
+    path("project/<uuid:project_id>/review/report/", review_report, name="review_report"),
+    path("project/<uuid:project_id>/review/get_all_review/", get_all_review, name="get_all_review"),
+    # ----- AI URLs -----
+    path("ai/sentiment/", analyze_sentiment, name="analyze_sentiment"),
 ]

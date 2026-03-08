@@ -3,6 +3,7 @@ from django.db import models
 
 from .Effect import Effect
 
+# Todo: delete this after
 class StatusEffect(models.Model):
 
     class EffectCategory(models.TextChoices):
