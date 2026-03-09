@@ -16,8 +16,10 @@ class RefreshTokenMiddleware:
                 key="access",
                 value=new_access,
                 httponly=True,
-                samesite="Lax",
-                secure=False,  # TODO: True in prod
+                samesite=getattr(settings, "DJANGO_COOKIE_SAMESITE", "Lax"),
+                secure=getattr(settings, "DJANGO_COOKIE_SECURE", False),
+                domain=getattr(settings, "DJANGO_COOKIE_DOMAIN", None),
+                path="/",
                 max_age=60*60,
             )
 

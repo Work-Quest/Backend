@@ -68,6 +68,20 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-!qhz^l=tao%1$($e4c7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DJANGO_DEBUG", default=True)
 
+# -------------------------
+# Cookies (JWT in HTTP-only cookies)
+# -------------------------
+# For same-site deployments (recommended): Secure=True (HTTPS) + SameSite=Lax
+# For cross-site deployments (frontend and backend on different sites): Secure=True + SameSite=None
+DJANGO_COOKIE_SECURE = _env_bool("DJANGO_COOKIE_SECURE", default=not DEBUG)
+DJANGO_COOKIE_SAMESITE = (os.getenv("DJANGO_COOKIE_SAMESITE", "Lax") or "Lax").strip()
+
+# Keep Django's own cookies aligned (safe even if you don't use sessions)
+SESSION_COOKIE_SECURE = DJANGO_COOKIE_SECURE
+CSRF_COOKIE_SECURE = DJANGO_COOKIE_SECURE
+SESSION_COOKIE_SAMESITE = DJANGO_COOKIE_SAMESITE
+CSRF_COOKIE_SAMESITE = DJANGO_COOKIE_SAMESITE
+
 
 ALLOWED_HOSTS = _env_csv(
     "DJANGO_ALLOWED_HOSTS",

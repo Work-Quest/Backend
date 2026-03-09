@@ -9,6 +9,27 @@ from api.models import BusinessUser
 from api.services.cache_service import CacheService
 import requests
 import uuid
+from django.conf import settings
+
+
+def _cookie_kwargs() -> dict:
+    """
+    Centralize cookie attributes so login/refresh/middleware stay consistent.
+
+    Notes:
+    - Cross-site (different base domains): SameSite=None AND Secure=True are required by browsers.
+    - Same-site (recommended): SameSite=Lax is typically fine.
+    """
+    kwargs = {
+        "httponly": True,
+        "secure": getattr(settings, "DJANGO_COOKIE_SECURE", False),
+        "samesite": getattr(settings, "DJANGO_COOKIE_SAMESITE", "Lax"),
+        "path": "/",
+    }
+    domain = getattr(settings, "DJANGO_COOKIE_DOMAIN", None)
+    if domain:
+        kwargs["domain"] = domain
+    return kwargs
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -78,24 +99,22 @@ def login(request):
         status=status.HTTP_200_OK
     )
 
+    cookie_kwargs = _cookie_kwargs()
+
     # HTTP-Only Access Token
     response.set_cookie(
         key="access",
         value=tokens["access"],
-        httponly=True,
-        secure=False,     # TODO: True in production (HTTPS)
-        samesite="Lax",
         max_age=60 * 60 * 24 * 3,  # 3 day
+        **cookie_kwargs,
     )
 
     # HTTP-Only Refresh Token 
     response.set_cookie(
         key="refresh",
         value=tokens["refresh"],
-        httponly=True,
-        secure=False, # TODO: True in production (HTTPS)
-        samesite="Lax",
         max_age=60 * 60 * 24 * 7,  # 7 days
+        **cookie_kwargs,
     )
 
     return response
@@ -104,8 +123,9 @@ def login(request):
 @permission_classes([IsAuthenticated])  
 def logout(request):
     response = Response({"message": "Logged out"})
-    response.delete_cookie("access")
-    response.delete_cookie("refresh")
+    cookie_kwargs = _cookie_kwargs()
+    response.delete_cookie("access", path=cookie_kwargs.get("path", "/"), domain=cookie_kwargs.get("domain"))
+    response.delete_cookie("refresh", path=cookie_kwargs.get("path", "/"), domain=cookie_kwargs.get("domain"))
     return response
 
 @api_view(["GET"])
@@ -169,24 +189,22 @@ def google_login(request):
     # Issue cookies
     response = Response({"username": user.username})
 
+    cookie_kwargs = _cookie_kwargs()
+
    # HTTP-Only Access Token
     response.set_cookie(
         key="access",
         value=tokens["access"],
-        httponly=True,
-        samesite="lax",
-        secure=False,     # TODO: True in production (HTTPS)
         max_age=60*60
+        **cookie_kwargs,
     )
 
     # HTTP-Only Refresh Token 
     response.set_cookie(
         key="refresh",
         value=tokens["refresh"],
-        httponly=True,
-        samesite="lax",
-        secure=False, # TODO: True in production (HTTPS)
         max_age=60 * 60 * 24 * 3,  # 3 days
+        **cookie_kwargs,
     )
 
     return response
@@ -207,12 +225,11 @@ def refresh_token(request):
         return Response({"error": "Invalid refresh token"}, status=401)
 
     response = Response({"message": "Token refreshed"})
+    cookie_kwargs = _cookie_kwargs()
     response.set_cookie(
         key="access",
         value=access,
-        httponly=True,
-        samesite="Lax",
-        secure=False,  # TODO: True in prod
         max_age=60*60
+        **cookie_kwargs,
     )
     return response
