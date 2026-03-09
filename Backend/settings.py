@@ -237,6 +237,8 @@ CSRF_TRUSTED_ORIGINS = _env_csv(
     default=["http://localhost:5173"],
 )
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # -------------------------
 # Email (notifications)
 # -------------------------
