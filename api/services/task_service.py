@@ -11,7 +11,10 @@ class TaskService:
     def get_all_tasks(self):
         if not self._domain.check_access(self._user):
             raise PermissionError("User does not have access to this project.")
-        return self._task_management.get_all_tasks()
+        # Prefetch assignees for TaskResponseSerializer.assignee_* fields
+        return self._task_management.get_all_tasks().prefetch_related(
+            "assigned_members__project_member__user"
+        )
 
     def create_task(self, task_data):
         if not self._domain.check_access(self._user):

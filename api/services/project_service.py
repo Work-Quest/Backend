@@ -139,8 +139,6 @@ class ProjectService:
         """
         project = ProjectModel.objects.get(project_id=project_id)
         domain = ProjectDomain(project)
-        if user != project.owner:
-            raise PermissionError("Only the project owner can close the project.")
         domain.close_project()
         return domain 
     
