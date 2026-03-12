@@ -195,7 +195,7 @@ def google_login(request):
     response.set_cookie(
         key="access",
         value=tokens["access"],
-        max_age=60*60
+        max_age=60*60,
         **cookie_kwargs,
     )
 
@@ -229,7 +229,7 @@ def refresh_token(request):
     response.set_cookie(
         key="access",
         value=access,
-        max_age=60*60
+        max_age=60*60,
         **cookie_kwargs,
     )
     return response
