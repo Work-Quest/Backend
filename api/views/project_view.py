@@ -16,6 +16,7 @@ from api.services.cache_service import CacheService
 from api.domains.project import Project as ProjectDomain
 from django.utils import timezone
 from datetime import timedelta
+from api.models.Task import Task
 
 # -------------------------
 # Project CRUD
@@ -511,3 +512,74 @@ def get_project_end_summary(request, project_id):
     project_summary = project_service.get_project_end_summary(user, project_id)
 
     return Response(project_summary)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_estimate_finish_time(request, project_id):
+    """
+    Calculate estimated finish time for the project based on average task completion speed.
+    Returns estimated days to complete remaining tasks, or null if no tasks have been completed yet.
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        project = ProjectModel.objects.get(project_id=project_id)
+        
+        # Check if user is a member of the project
+        from api.models.ProjectMember import ProjectMember
+        if not ProjectMember.objects.filter(project=project, user=user).exists():
+            return Response(
+                {"error": "User is not a member of this project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        # Get all completed tasks
+        completed_tasks = Task.objects.filter(
+            project_id=project_id,
+            status='done',
+            completed_at__isnull=False
+        )
+        
+        # If no completed tasks, return null
+        if not completed_tasks.exists():
+            return Response(
+                {"estimatedDays": None},
+                status=status.HTTP_200_OK,
+            )
+        
+        # Calculate average completion time
+        total_duration = timedelta(0)
+        for task in completed_tasks:
+            duration = task.completed_at - task.created_at
+            total_duration += duration
+        
+        average_duration = total_duration / completed_tasks.count()
+        average_days = average_duration.total_seconds() / (24 * 60 * 60)
+        
+        # Count remaining incomplete tasks
+        remaining_tasks = Task.objects.filter(
+            project_id=project_id,
+            status__in=['backlog', 'todo', 'inProgress']
+        ).count()
+        
+        # Calculate estimated finish time
+        if remaining_tasks == 0:
+            estimated_days = 0
+        else:
+            estimated_days = round(average_days * remaining_tasks)
+        
+        return Response(
+            {"estimatedDays": estimated_days},
+            status=status.HTTP_200_OK,
+        )
+        
+    except ProjectModel.DoesNotExist:
+        return Response(
+            {"error": "Project not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )

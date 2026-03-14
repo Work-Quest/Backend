@@ -35,6 +35,7 @@ urlpatterns = [
     path("project/<uuid:project_id>/feedback/", get_project_feedback, name="get_project_feedback"),
     path("project/<uuid:project_id>/deadline/continue/", deadline_continue, name="deadline_continue"),
     path("project/<uuid:project_id>/end-summary/", get_project_end_summary, name="get_project_end_summary"),
+    path("project/<uuid:project_id>/estimate-finish-time/", get_estimate_finish_time, name="get_estimate_finish_time"),
     # ----- Task URLs -----
     path("project/<uuid:project_id>/tasks/", task_list, name="task_list"),
     path("project/<uuid:project_id>/tasks/create/", task_create, name="task_create"),
