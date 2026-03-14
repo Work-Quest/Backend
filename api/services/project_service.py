@@ -8,6 +8,9 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from api.services.game_service import GameService
 from api.models import TaskLog, ProjectBoss
+from api.models.Task import Task
+from datetime import timedelta
+from collections import defaultdict
 
 
 class ProjectService:
@@ -245,5 +248,113 @@ class ProjectService:
                 "boss_count": boss.count(),
                 "boss": boss_list,
                 'reduction_percent': reduction_percent
+        }
+
+    def get_dashboard_data(self, project_id: str):
+        """
+        Get dashboard visualization data including task status counts, burn down chart data, and project details.
+        """
+        project = ProjectModel.objects.get(project_id=project_id)
+        
+        # Get all tasks for the project
+        all_tasks = Task.objects.filter(project_id=project_id)
+        
+        # Calculate task status counts
+        task_status_counts = {
+            'backlog': all_tasks.filter(status='backlog').count(),
+            'todo': all_tasks.filter(status='todo').count(),
+            'inProgress': all_tasks.filter(status='inProgress').count(),
+            'done': all_tasks.filter(status='done').count(),
+        }
+        
+        # Calculate burn down chart data
+        # Get project start date (created_at) and today
+        project_start = project.created_at.date()
+        today = timezone.now().date()
+        
+        # Get all completed tasks with their completion dates
+        completed_tasks = all_tasks.filter(
+            status='done',
+            completed_at__isnull=False
+        ).values('completed_at')
+        
+        # Group completed tasks by date
+        completed_by_date = defaultdict(int)
+        for task in completed_tasks:
+            completion_date = task['completed_at'].date()
+            if project_start <= completion_date <= today:
+                completed_by_date[completion_date] += 1
+        
+        # Calculate total tasks
+        total_tasks = all_tasks.count()
+        
+        # Generate burn down data for each day from project start to today (max 30 days)
+        burn_down_data = []
+        days_to_show = min((today - project_start).days + 1, 30)
+        
+        if days_to_show > 0:
+            cumulative_completed = 0
+            for i in range(days_to_show):
+                current_date = project_start + timedelta(days=i)
+                # Add tasks completed on this date
+                cumulative_completed += completed_by_date.get(current_date, 0)
+                remaining_tasks = total_tasks - cumulative_completed
+                burn_down_data.append({
+                    'date': current_date.isoformat(),
+                    'remainingTasks': max(0, remaining_tasks)
+                })
+        else:
+            # If project just started, show current state
+            completed_count = task_status_counts['done']
+            burn_down_data.append({
+                'date': today.isoformat(),
+                'remainingTasks': max(0, total_tasks - completed_count)
+            })
+        
+        # Calculate days left
+        days_left = None
+        if project.deadline:
+            deadline_date = project.deadline.date()
+            if deadline_date >= today:
+                days_left = (deadline_date - today).days
+        
+        # Get estimated finish time (reuse logic from get_estimate_finish_time endpoint)
+        estimated_finish_time = None
+        completed_tasks_for_estimate = all_tasks.filter(
+            status='done',
+            completed_at__isnull=False
+        )
+        
+        if completed_tasks_for_estimate.exists():
+            total_duration = timedelta(0)
+            for task in completed_tasks_for_estimate:
+                duration = task.completed_at - task.created_at
+                total_duration += duration
+            
+            average_duration = total_duration / completed_tasks_for_estimate.count()
+            average_days = average_duration.total_seconds() / (24 * 60 * 60)
+            
+            remaining_tasks = all_tasks.filter(
+                status__in=['backlog', 'todo', 'inProgress']
+            ).count()
+            
+            if remaining_tasks > 0:
+                estimated_finish_time = round(average_days * remaining_tasks)
+        
+        # Format deadline for display
+        formatted_deadline = None
+        if project.deadline:
+            formatted_deadline = project.deadline.strftime('%m/%d/%Y')
+        
+        return {
+            'taskStatusCounts': task_status_counts,
+            'burnDownData': burn_down_data,
+            'projectDetails': {
+                'deadline': formatted_deadline,
+                'daysLeft': days_left,
+                'estimatedFinishTime': estimated_finish_time,
+                'totalTasks': total_tasks,
+                'completedTasks': task_status_counts['done']
+            }
         }
 

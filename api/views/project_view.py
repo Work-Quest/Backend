@@ -583,3 +583,41 @@ def get_estimate_finish_time(request, project_id):
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_dashboard(request, project_id):
+    """
+    Get dashboard visualization data including task status counts, burn down chart data, and project details.
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        project = ProjectModel.objects.get(project_id=project_id)
+        
+        # Check if user is a member of the project
+        from api.models.ProjectMember import ProjectMember
+        if not ProjectMember.objects.filter(project=project, user=user).exists():
+            return Response(
+                {"error": "User is not a member of this project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        project_service = ProjectService()
+        dashboard_data = project_service.get_dashboard_data(project_id)
+        
+        return Response(
+            dashboard_data,
+            status=status.HTTP_200_OK,
+        )
+        
+    except ProjectModel.DoesNotExist:
+        return Response(
+            {"error": "Project not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
