@@ -13,6 +13,8 @@ from api.services.project_service import ProjectService
 from api.services.join_service import JoinService
 from api.serializers.project_serializer import ProjectSerializer, ProjectMemberSerializer
 from api.services.cache_service import CacheService
+from api.domains.project import Project as ProjectDomain
+from django.utils import timezone
 from datetime import timedelta
 
 # -------------------------
@@ -427,3 +429,85 @@ def get_all_project_members(request, project_id):
         members_data,
         status=status.HTTP_200_OK
     )
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def deadline_continue(request, project_id):
+    """
+    Mark project as continued after deadline has passed.
+    Only updates the deadline_decision field, does not apply score reduction.
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        project = ProjectModel.objects.get(project_id=project_id)
+        
+        # Check if user is a member of the project
+        from api.models.ProjectMember import ProjectMember
+        if not ProjectMember.objects.filter(project=project, user=user).exists():
+            return Response(
+                {"error": "User is not a member of this project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        # Check if deadline has passed
+        if not project.deadline:
+            return Response(
+                {"error": "Project has no deadline set."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        today = timezone.now()
+        if project.deadline > today:
+            return Response(
+                {"error": "Project deadline has not passed yet."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Check if decision has already been made
+        if project.deadline_decision:
+            return Response(
+                {"error": f"Deadline decision already made: {project.deadline_decision}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Only update the deadline decision
+        project.deadline_decision = 'continued'
+        project.deadline_decision_date = timezone.now()
+        project.save()
+        
+        CacheService().invalidate_user_projects(user.user_id)
+        
+        return Response(
+            {
+                "message": "Project marked as continued",
+                "deadline_decision": "continued",
+                "deadline_decision_date": project.deadline_decision_date.isoformat(),
+            },
+            status=status.HTTP_200_OK,
+        )
+    except ProjectModel.DoesNotExist:
+        return Response(
+            {"error": "Project not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_project_end_summary(request, project_id):
+    """
+    Get project end summary data including user scores, score reductions, and boss defeats.
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+
+    project_service = ProjectService()
+
+    project_summary = project_service.get_project_end_summary(user, project_id)
+
+    return Response(project_summary)

@@ -33,6 +33,8 @@ urlpatterns = [
     path("project/invite/accept/", accept_invite, name="accept_invite"),
     path("project/<uuid:project_id>/members/",get_all_project_members,name="get_all_project_members"),
     path("project/<uuid:project_id>/feedback/", get_project_feedback, name="get_project_feedback"),
+    path("project/<uuid:project_id>/deadline/continue/", deadline_continue, name="deadline_continue"),
+    path("project/<uuid:project_id>/end-summary/", get_project_end_summary, name="get_project_end_summary"),
     # ----- Task URLs -----
     path("project/<uuid:project_id>/tasks/", task_list, name="task_list"),
     path("project/<uuid:project_id>/tasks/create/", task_create, name="task_create"),
