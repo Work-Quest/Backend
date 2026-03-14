@@ -12,19 +12,35 @@ class TaskLogQueryService:
     def _base_queryset(self) -> QuerySet:
         return TaskLog.objects.all()
 
-    def get_game_logs(self, project_id: str) -> list[ProjectLogReadDTO]:
+    def get_game_logs(self, project_id: str, time_begin=None) -> list[ProjectLogReadDTO]:
+        """
+        Get game-related logs for a project, optionally filtered by time.
+        
+        Args:
+            project_id: Project ID to filter logs
+            time_begin: Optional datetime to filter logs by created_at > time_begin
+        """
         # Only return game-related events for the "game logs" endpoint.
         # (Avoid task lifecycle noise like TASK_CREATED / TASK_UPDATED / etc.)
         allowed_event_types = (
             TaskLog.EventType.USER_ATTACK,
             TaskLog.EventType.BOSS_ATTACK,
+            TaskLog.EventType.KILL_BOSS,
+            TaskLog.EventType.KILL_PLAYER,
+            TaskLog.EventType.BOSS_REVIVE,
+            TaskLog.EventType.USER_REVIVE,
         )
         logs = (
             self._base_queryset()
             .filter(project_id=project_id)
             .filter(event_type__in=allowed_event_types)
-            .order_by("-created_at")
         )
+        
+        # Filter by time if provided
+        if time_begin is not None:
+            logs = logs.filter(created_at__gt=time_begin)
+        
+        logs = logs.order_by("-created_at")
 
         return [
             ProjectLogReadDTO(
