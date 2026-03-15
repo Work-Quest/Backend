@@ -11,6 +11,7 @@ from api.models import TaskLog, ProjectBoss, ProjectEndSummary
 from api.models.Task import Task
 from datetime import timedelta
 from collections import defaultdict
+from django.db.models import Max, OuterRef, Subquery
 
 
 class ProjectService:
@@ -416,4 +417,55 @@ class ProjectService:
                 'completedTasks': task_status_counts['done']
             }
         }
+
+    def get_global_leaderboard(self):
+        """
+        Get global leaderboard with top 10 users based on their highest score across all projects.
+        For each user, selects the record with their maximum score.
+        """
+        from django.db.models import F, Window, Max as MaxFunc
+        from django.db.models.functions import RowNumber
+        
+        # Get max score per user using window function
+        # This is more efficient than multiple queries
+        user_max_scores = (
+            ProjectEndSummary.objects
+            .values('user_id')
+            .annotate(max_score=MaxFunc('score'))
+        )
+        
+        # Create a mapping of user_id to max_score
+        max_score_map = {item['user_id']: item['max_score'] for item in user_max_scores}
+        
+        # Get one record per user with their max score
+        # Use distinct on user_id with ordering to get the most recent record if there are ties
+        leaderboard_data = []
+        seen_users = set()
+        
+        # Query all records, ordered by score descending, then by updated_at descending
+        # This ensures we get the highest scores first, and for ties, the most recent record
+        all_records = ProjectEndSummary.objects.order_by('-score', '-updated_at')
+        
+        for record in all_records:
+            user_id = record.user_id
+            if user_id not in seen_users:
+                # Check if this record has the max score for this user
+                if record.score == max_score_map.get(user_id):
+                    leaderboard_data.append({
+                        'order': len(leaderboard_data) + 1,
+                        'name': record.name,
+                        'username': record.username,
+                        'score': record.score,
+                        'damageDeal': record.damage_deal,
+                        'damageReceive': record.damage_receive,
+                        'status': record.status,
+                        'isMVP': False,  # Global leaderboard doesn't have MVP
+                    })
+                    seen_users.add(user_id)
+                    
+                    # Stop when we have 10 users
+                    if len(leaderboard_data) >= 10:
+                        break
+        
+        return leaderboard_data
 

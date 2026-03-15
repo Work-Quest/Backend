@@ -621,3 +621,23 @@ def get_dashboard(request, project_id):
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_global_leaderboard(request):
+    """
+    Get global leaderboard with top 10 users based on their highest score across all projects.
+    """
+    try:
+        project_service = ProjectService()
+        leaderboard_data = project_service.get_global_leaderboard()
+        
+        return Response(
+            leaderboard_data,
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )

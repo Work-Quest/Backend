@@ -20,6 +20,7 @@ urlpatterns = [
     path("me/", me),
     # ----- User URLs -----
     path("users/business/", get_all_business_users, name="get_all_business_users"),
+    path("leaderboard/", get_global_leaderboard, name="get_global_leaderboard"),
     # ----- Project URLs -----
     path("project/create/", create_project, name="create_project"),
     path("project/<uuid:project_id>/edit/", edit_project, name="edit_project"),
