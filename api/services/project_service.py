@@ -11,7 +11,7 @@ from api.models import TaskLog, ProjectBoss, ProjectEndSummary
 from api.models.Task import Task
 from datetime import timedelta
 from collections import defaultdict
-from django.db.models import Max, OuterRef, Subquery
+from django.db.models import Max, OuterRef, Subquery, Sum
 
 
 class ProjectService:
@@ -455,6 +455,7 @@ class ProjectService:
                         'order': len(leaderboard_data) + 1,
                         'name': record.name,
                         'username': record.username,
+                        'user_id': str(record.user_id),  # Add user_id for profile navigation
                         'score': record.score,
                         'damageDeal': record.damage_deal,
                         'damageReceive': record.damage_receive,
@@ -468,4 +469,143 @@ class ProjectService:
                         break
         
         return leaderboard_data
+
+    def get_user_finished_projects(self, user=None, user_id=None):
+        """
+        Get finished projects for a user from ProjectEndSummary table.
+        Returns list of projects with project_name, score, and boss_count.
+        Accepts either a BusinessUser object or user_id string.
+        """
+        from api.models import BusinessUser
+        
+        # Resolve user object if user_id is provided
+        if user_id and not user:
+            try:
+                user = BusinessUser.objects.get(user_id=user_id)
+            except BusinessUser.DoesNotExist:
+                return []
+        
+        if not user:
+            return []
+        
+        # Get unique project IDs for this user with their most recent updated_at
+        summaries = ProjectEndSummary.objects.filter(
+            user_id=user.user_id
+        ).values('project_id').annotate(
+            latest_updated=Max('updated_at')
+        ).order_by('-latest_updated')
+        
+        finished_projects = []
+        
+        for summary in summaries:
+            project_id = summary['project_id']
+            try:
+                # Get project details
+                project = ProjectModel.objects.get(project_id=project_id)
+                
+                # Get user's most recent summary for this project
+                user_summary = ProjectEndSummary.objects.filter(
+                    user_id=user.user_id,
+                    project_id=project_id
+                ).order_by('-updated_at').first()
+                
+                if user_summary:
+                    finished_projects.append({
+                        'project_id': str(project_id),
+                        'project_name': project.project_name,
+                        'score': user_summary.score,
+                        'boss_count': user_summary.boss_count,
+                    })
+            except ProjectModel.DoesNotExist:
+                # Skip if project doesn't exist
+                continue
+        
+        return finished_projects
+
+    def get_user_profile_stats(self, user=None, user_id=None):
+        """
+        Get user profile statistics from ProjectEndSummary table.
+        Returns highest score, project count, and total bosses defeated.
+        Accepts either a BusinessUser object or user_id string.
+        """
+        from api.models import BusinessUser
+        
+        # Resolve user object if user_id is provided
+        if user_id and not user:
+            try:
+                user = BusinessUser.objects.get(user_id=user_id)
+            except BusinessUser.DoesNotExist:
+                return {
+                    'highest_score': 0,
+                    'project_count': 0,
+                    'total_bosses_defeated': 0,
+                }
+        
+        if not user:
+            return {
+                'highest_score': 0,
+                'project_count': 0,
+                'total_bosses_defeated': 0,
+            }
+        
+        summaries = ProjectEndSummary.objects.filter(user_id=user.user_id)
+        
+        if not summaries.exists():
+            return {
+                'highest_score': 0,
+                'project_count': 0,
+                'total_bosses_defeated': 0,
+            }
+        
+        # Calculate highest score
+        highest_score = summaries.aggregate(max_score=Max('score'))['max_score'] or 0
+        
+        # Count unique projects
+        project_count = ProjectMember.objects.filter(user=user).count()
+        
+        # Sum total bosses defeated (sum of boss_count from all records)
+        total_bosses_defeated = summaries.aggregate(total=Sum('boss_count'))['total'] or 0
+        
+        return {
+            'highest_score': highest_score,
+            'project_count': project_count,
+            'total_bosses_defeated': total_bosses_defeated,
+        }
+
+    def get_user_defeated_bosses(self, user=None, user_id=None):
+        """
+        Get unique bosses defeated by user from ProjectEndSummary table.
+        Extracts bosses from the boss JSONField and returns unique list.
+        Accepts either a BusinessUser object or user_id string.
+        """
+        from api.models import BusinessUser
+        
+        # Resolve user object if user_id is provided
+        if user_id and not user:
+            try:
+                user = BusinessUser.objects.get(user_id=user_id)
+            except BusinessUser.DoesNotExist:
+                return []
+        
+        if not user:
+            return []
+        
+        summaries = ProjectEndSummary.objects.filter(user_id=user.user_id)
+        
+        defeated_bosses = []
+        seen_boss_ids = set()
+        
+        for summary in summaries:
+            if summary.boss and isinstance(summary.boss, list):
+                for boss in summary.boss:
+                    boss_id = str(boss.get('id', ''))
+                    if boss_id and boss_id not in seen_boss_ids:
+                        defeated_bosses.append({
+                            'id': boss_id,
+                            'name': boss.get('name', 'Unknown Boss'),
+                            'type': boss.get('type', 'Normal'),
+                        })
+                        seen_boss_ids.add(boss_id)
+        
+        return defeated_bosses
 

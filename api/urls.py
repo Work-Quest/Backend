@@ -21,6 +21,9 @@ urlpatterns = [
     # ----- User URLs -----
     path("users/business/", get_all_business_users, name="get_all_business_users"),
     path("leaderboard/", get_global_leaderboard, name="get_global_leaderboard"),
+    path("user/finished-projects/", get_user_finished_projects, name="get_user_finished_projects"),
+    path("user/profile-stats/", get_user_profile_stats, name="get_user_profile_stats"),
+    path("user/defeated-bosses/", get_user_defeated_bosses, name="get_user_defeated_bosses"),
     # ----- Project URLs -----
     path("project/create/", create_project, name="create_project"),
     path("project/<uuid:project_id>/edit/", edit_project, name="edit_project"),
@@ -29,6 +32,7 @@ urlpatterns = [
     path("project/close/", close_project, name="close_project"),
     path("project/<uuid:project_id>/access/", check_project_access, name="check_project_access"),
     path("project/member/join/",join_project,name="join_project"),
+    path("project/member/leave/",leave_project,name="leave_project"),
     path("project/member/leave/",leave_project,name="leave_project"),
     path("project/<uuid:project_id>/invite/", batch_invite, name="batch_invite"),
     path("project/invite/accept/", accept_invite, name="accept_invite"),
