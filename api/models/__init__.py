@@ -14,3 +14,4 @@ from .UserBossCollection import UserBossCollection
 from .UserFeedback import UserFeedback
 from .UserReport import UserReport
 from .UserTask import UserTask
+from .ProjectEndSummary import ProjectEndSummary

@@ -7,7 +7,7 @@ from api.domains.project import Project
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from api.services.game_service import GameService
-from api.models import TaskLog, ProjectBoss
+from api.models import TaskLog, ProjectBoss, ProjectEndSummary
 from api.models.Task import Task
 from datetime import timedelta
 from collections import defaultdict
@@ -165,89 +165,148 @@ class ProjectService:
     def get_project_end_summary(self, user, project_id):
 
         project = ProjectModel.objects.get(project_id=project_id)
-        # Check if user is a member of the project
+
+        # Check membership
         if not ProjectMember.objects.filter(project=project, user=user).exists():
             raise ValueError("User is not a member of this project.")
+
+        # CHECK IF SUMMARY ALREADY EXISTS
+        existing = ProjectEndSummary.objects.filter(project_id=project_id)
+        if existing.exists():
+            first = existing.first()
+
+            return {
+                "users": [
+                    {
+                        "order": item["order"],
+                        "user_id": str(item["user_id"]),  # Convert UUID to string
+                        "name": item["name"],
+                        "username": item["username"],
+                        "score": item["score"],
+                        "damageDeal": item["damage_deal"],
+                        "damageReceive": item["damage_receive"],
+                        "status": item["status"],
+                        "isMVP": item["is_mvp"],
+                    }
+                    for item in existing.order_by("order").values(
+                        "order",
+                        "user_id",
+                        "name",
+                        "username",
+                        "score",
+                        "damage_deal",
+                        "damage_receive",
+                        "status",
+                        "is_mvp",
+                    )
+                ],
+                "boss_count": first.boss_count,
+                "boss": first.boss,
+                "reduction_percent": first.reduction_percent,
+            }
 
         domain = ProjectDomain(project)
         members = domain._project_member_management.members
 
-        # Calculate delay days if deadline passed
         delay_days = None
+        reduction_percent = None
+
         if project.deadline:
             today = timezone.now()
             if project.deadline < today:
                 delay_days = (today - project.deadline).days
 
-        # Build user scores with damage stats
         user_scores = []
 
         for member in members:
 
-            # Calculate damage dealt and received from logs
             damage_dealt = TaskLog.objects.filter(
                 project_id=project_id,
                 event_type=TaskLog.EventType.USER_ATTACK,
-                actor_id=str(member.project_member_id)
+                actor_id=str(member.project_member_id),
             ).values_list("payload", flat=True)
 
             damage_received = TaskLog.objects.filter(
                 project_id=project_id,
                 event_type=TaskLog.EventType.BOSS_ATTACK,
-                actor_id=str(member.project_member_id)
+                actor_id=str(member.project_member_id),
             ).values_list("payload", flat=True)
 
             damage_list = [p["damage"] for p in damage_dealt]
-            print(damage_list)
             damage_received_list = [p["damage"] for p in damage_received]
+
             total_damage_dealt = sum(damage_list)
             total_damage_received = sum(damage_received_list)
 
             score = member.score
-            reduction_percent = None
-            # If project was continued after deadline, calculate original score
-            if project.deadline_decision == 'continued' and delay_days:
+
+            if project.deadline_decision == "continued" and delay_days:
                 reduction_percent = min(delay_days * 5, 50)
 
                 if reduction_percent > 0:
                     score = int(score / (1 - reduction_percent / 100))
 
+            user_scores.append(
+                {
+                    "order": len(user_scores) + 1,
+                    "user_id": str(member.user.user_id),  # Convert UUID to string
+                    "name": member.user.name or member.user.username,
+                    "username": member.user.username,
+                    "score": score,
+                    "damageDeal": total_damage_dealt,
+                    "damageReceive": total_damage_received,
+                    "status": member.status,
+                    "isMVP": False,
+                    "member_id": str(member.project_member_id),  # Convert UUID to string
+                }
+            )
 
-            user_scores.append({
-                'order': len(user_scores) + 1,
-                'name': member.user.name or member.user.username,
-                'username': member.user.username,
-                'score': score,
-                'damageDeal': total_damage_dealt,
-                'damageReceive': total_damage_received,
-                'status': member.status,
-                'isMVP': False,  # Will be calculated based on highest score
-            })
+        user_scores.sort(key=lambda x: x["score"], reverse=True)
 
-        # Sort by score descending and assign MVP
-        user_scores.sort(key=lambda x: x['score'], reverse=True)
         if user_scores:
-            user_scores[0]['isMVP'] = True
-            # Update order
-            for i, user in enumerate(user_scores, 1):
-                user['order'] = i
+            user_scores[0]["isMVP"] = True
+
+            for i, user_data in enumerate(user_scores, 1):
+                user_data["order"] = i
 
         boss = ProjectBoss.objects.filter(project=project, status="Dead")
+
         boss_list = [
             {
-                "id": b.boss.boss_id,
+                "id": str(b.boss.boss_id),  # Convert UUID to string
                 "name": b.boss.boss_name,
-                "type": b.boss.boss_type
+                "type": b.boss.boss_type,
             }
             for b in boss
         ]
 
+        boss_count = boss.count()
+
+        with transaction.atomic():
+
+            for user_data in user_scores:
+                ProjectEndSummary.objects.create(
+                    project_member_id=user_data["member_id"],
+                    project_id=project_id,
+                    user_id=user_data["user_id"],
+                    order=user_data["order"],
+                    name=user_data["name"],
+                    username=user_data["username"],
+                    score=user_data["score"],
+                    damage_deal=user_data["damageDeal"],
+                    damage_receive=user_data["damageReceive"],
+                    status=user_data["status"],
+                    is_mvp=user_data["isMVP"],
+                    boss=boss_list,
+                    boss_count=boss_count,
+                    reduction_percent=reduction_percent,
+                )
 
         return {
-                "users": user_scores,
-                "boss_count": boss.count(),
-                "boss": boss_list,
-                'reduction_percent': reduction_percent
+            "users": user_scores,
+            "boss_count": boss_count,
+            "boss": boss_list,
+            "reduction_percent": reduction_percent,
         }
 
     def get_dashboard_data(self, project_id: str):

@@ -30,3 +30,12 @@ def me(request):
         loader=_load,
     )
     return Response(data)
+
+
+# @api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+# def leader_board(request):
+#     # ranking =
+#
+#
+#     return Response(data)
