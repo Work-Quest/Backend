@@ -16,6 +16,8 @@ class Project(models.Model):
     total_tasks = models.IntegerField(default=0)
     completed_tasks = models.IntegerField(default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="Working")
+    deadline_decision = models.CharField(max_length=20, choices=[('closed', 'Closed'), ('continued', 'Continued')], null=True, blank=True)
+    deadline_decision_date = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         return f"Project {self.project_id}"

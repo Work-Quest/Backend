@@ -64,6 +64,19 @@ class ReviewService:
 
         receivers = task_domain.get_assigned_members()
         reviewer_member_model = ProjectMemberModel.objects.get(project=project, user=business_user)
+
+        # Rule: assignee cannot review their own task
+        if any(str(m.project_member_id) == str(reviewer_member_model.project_member_id) for m in receivers):
+            raise ValueError("Assignee cannot review their own task")
+
+        # Rule: one review per task per reviewer
+        already_reviewed = UserReport.objects.filter(
+            reviewer=reviewer_member_model,
+            report__task_id=task_id,
+        ).exists()
+        if already_reviewed:
+            raise ValueError("You already reviewed this task")
+
         valid_receivers = [
             m for m in receivers
             if m.project_member_id != reviewer_member_model.project_member_id

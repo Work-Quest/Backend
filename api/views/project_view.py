@@ -13,7 +13,10 @@ from api.services.project_service import ProjectService
 from api.services.join_service import JoinService
 from api.serializers.project_serializer import ProjectSerializer, ProjectMemberSerializer
 from api.services.cache_service import CacheService
+from api.domains.project import Project as ProjectDomain
+from django.utils import timezone
 from datetime import timedelta
+from api.models.Task import Task
 
 # -------------------------
 # Project CRUD
@@ -427,3 +430,214 @@ def get_all_project_members(request, project_id):
         members_data,
         status=status.HTTP_200_OK
     )
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def deadline_continue(request, project_id):
+    """
+    Mark project as continued after deadline has passed.
+    Only updates the deadline_decision field, does not apply score reduction.
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        project = ProjectModel.objects.get(project_id=project_id)
+        
+        # Check if user is a member of the project
+        from api.models.ProjectMember import ProjectMember
+        if not ProjectMember.objects.filter(project=project, user=user).exists():
+            return Response(
+                {"error": "User is not a member of this project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        # Check if deadline has passed
+        if not project.deadline:
+            return Response(
+                {"error": "Project has no deadline set."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        today = timezone.now()
+        if project.deadline > today:
+            return Response(
+                {"error": "Project deadline has not passed yet."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Check if decision has already been made
+        if project.deadline_decision:
+            return Response(
+                {"error": f"Deadline decision already made: {project.deadline_decision}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Only update the deadline decision
+        project.deadline_decision = 'continued'
+        project.deadline_decision_date = timezone.now()
+        project.save()
+        
+        CacheService().invalidate_user_projects(user.user_id)
+        
+        return Response(
+            {
+                "message": "Project marked as continued",
+                "deadline_decision": "continued",
+                "deadline_decision_date": project.deadline_decision_date.isoformat(),
+            },
+            status=status.HTTP_200_OK,
+        )
+    except ProjectModel.DoesNotExist:
+        return Response(
+            {"error": "Project not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_project_end_summary(request, project_id):
+    """
+    Get project end summary data including user scores, score reductions, and boss defeats.
+    """
+    cur_user = request.user
+    user = BusinessUser.objects.get(auth_user=cur_user)
+
+    project_service = ProjectService()
+
+    project_summary = project_service.get_project_end_summary(user, project_id)
+
+    return Response(project_summary)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_estimate_finish_time(request, project_id):
+    """
+    Calculate estimated finish time for the project based on average task completion speed.
+    Returns estimated days to complete remaining tasks, or null if no tasks have been completed yet.
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        project = ProjectModel.objects.get(project_id=project_id)
+        
+        # Check if user is a member of the project
+        from api.models.ProjectMember import ProjectMember
+        if not ProjectMember.objects.filter(project=project, user=user).exists():
+            return Response(
+                {"error": "User is not a member of this project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        # Get all completed tasks
+        completed_tasks = Task.objects.filter(
+            project_id=project_id,
+            status='done',
+            completed_at__isnull=False
+        )
+        
+        # If no completed tasks, return null
+        if not completed_tasks.exists():
+            return Response(
+                {"estimatedDays": None},
+                status=status.HTTP_200_OK,
+            )
+        
+        # Calculate average completion time
+        total_duration = timedelta(0)
+        for task in completed_tasks:
+            duration = task.completed_at - task.created_at
+            total_duration += duration
+        
+        average_duration = total_duration / completed_tasks.count()
+        average_days = average_duration.total_seconds() / (24 * 60 * 60)
+        
+        # Count remaining incomplete tasks
+        remaining_tasks = Task.objects.filter(
+            project_id=project_id,
+            status__in=['backlog', 'todo', 'inProgress']
+        ).count()
+        
+        # Calculate estimated finish time
+        if remaining_tasks == 0:
+            estimated_days = 0
+        else:
+            estimated_days = round(average_days * remaining_tasks)
+        
+        return Response(
+            {"estimatedDays": estimated_days},
+            status=status.HTTP_200_OK,
+        )
+        
+    except ProjectModel.DoesNotExist:
+        return Response(
+            {"error": "Project not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_dashboard(request, project_id):
+    """
+    Get dashboard visualization data including task status counts, burn down chart data, and project details.
+    """
+    try:
+        cur_user = request.user
+        user = BusinessUser.objects.get(auth_user=cur_user)
+        project = ProjectModel.objects.get(project_id=project_id)
+        
+        # Check if user is a member of the project
+        from api.models.ProjectMember import ProjectMember
+        if not ProjectMember.objects.filter(project=project, user=user).exists():
+            return Response(
+                {"error": "User is not a member of this project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        project_service = ProjectService()
+        dashboard_data = project_service.get_dashboard_data(project_id)
+        
+        return Response(
+            dashboard_data,
+            status=status.HTTP_200_OK,
+        )
+        
+    except ProjectModel.DoesNotExist:
+        return Response(
+            {"error": "Project not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_global_leaderboard(request):
+    """
+    Get global leaderboard with top 10 users based on their highest score across all projects.
+    """
+    try:
+        project_service = ProjectService()
+        leaderboard_data = project_service.get_global_leaderboard()
+        
+        return Response(
+            leaderboard_data,
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )

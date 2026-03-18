@@ -21,6 +21,10 @@ urlpatterns = [
     path("me/achievements/", me_achievements),
     # ----- User URLs -----
     path("users/business/", get_all_business_users, name="get_all_business_users"),
+    path("leaderboard/", get_global_leaderboard, name="get_global_leaderboard"),
+    path("user/finished-projects/", get_user_finished_projects, name="get_user_finished_projects"),
+    path("user/profile-stats/", get_user_profile_stats, name="get_user_profile_stats"),
+    path("user/defeated-bosses/", get_user_defeated_bosses, name="get_user_defeated_bosses"),
     # ----- Project URLs -----
     path("project/create/", create_project, name="create_project"),
     path("project/<uuid:project_id>/edit/", edit_project, name="edit_project"),
@@ -30,10 +34,15 @@ urlpatterns = [
     path("project/<uuid:project_id>/access/", check_project_access, name="check_project_access"),
     path("project/member/join/",join_project,name="join_project"),
     path("project/member/leave/",leave_project,name="leave_project"),
+    path("project/member/leave/",leave_project,name="leave_project"),
     path("project/<uuid:project_id>/invite/", batch_invite, name="batch_invite"),
     path("project/invite/accept/", accept_invite, name="accept_invite"),
     path("project/<uuid:project_id>/members/",get_all_project_members,name="get_all_project_members"),
     path("project/<uuid:project_id>/feedback/", get_project_feedback, name="get_project_feedback"),
+    path("project/<uuid:project_id>/deadline/continue/", deadline_continue, name="deadline_continue"),
+    path("project/<uuid:project_id>/end-summary/", get_project_end_summary, name="get_project_end_summary"),
+    path("project/<uuid:project_id>/estimate-finish-time/", get_estimate_finish_time, name="get_estimate_finish_time"),
+    path("project/<uuid:project_id>/dashboard/", get_dashboard, name="get_dashboard"),
     # ----- Task URLs -----
     path("project/<uuid:project_id>/tasks/", task_list, name="task_list"),
     path("project/<uuid:project_id>/tasks/create/", task_create, name="task_create"),

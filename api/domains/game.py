@@ -2,6 +2,7 @@ from api.models.UserItem import UserItem
 from api.models.Item import Item
 from api.models.UserEffect import UserEffect
 from api.models.ProjectBoss import ProjectBoss
+from api.models.UserReport import UserReport
 from api.domains.boss import Boss as BossDomain
 from api.models.Boss import Boss
 import random
@@ -33,7 +34,7 @@ class Game:
         }
 
         self.BASE_SCORE = 0.1
-        self.BASE_SPECIAL_BOSS_HP = 5000
+        self.BASE_SPECIAL_BOSS_HP = 50000
         self.DAMAGE_TUNING = {
             "priority": { "base": 0.4, "weight": 0.8 },   
             "speed":    { "base": 0.6, "weight": 0.9 },
@@ -396,6 +397,21 @@ class Game:
         if task is None:
             raise ValueError("report_domain.task is required")
        
+        # Guard: support is one-time per report_id (avoid farming / double apply)
+        support_event_types = (
+            TaskLog.EventType.GIVE_ITEM,
+            TaskLog.EventType.APPLY_BUFF,
+            TaskLog.EventType.APPLY_DEBUFF,
+            TaskLog.EventType.HEAL,
+        )
+        already_supported = TaskLog.objects.filter(
+            project_id=self._project.project.project_id,
+            event_type__in=support_event_types,
+            payload__report_id=str(report_domain.report_id),
+        ).exists()
+        if already_supported:
+            raise ValueError("Support already applied")
+
 
         def _ts(dt):
             return dt.timestamp() if dt is not None else None
@@ -409,8 +425,23 @@ class Game:
         trust_scores = self._review.trust_policy.compute(facts, report_domain.sentiment_score)
         weighted_sentiment_score = float(trust_scores.get("weight_sentiment_score"))
 
-        # Determine receivers
-        receivers = task.get_assigned_members()
+        # Determine receivers: ONLY those targeted by this review (UserReport rows).
+        user_reports = (
+            UserReport.objects
+            .select_related("receiver", "receiver__user")
+            .filter(report_id=report_domain.report_id)
+        )
+        if not user_reports.exists():
+            raise ValueError("No receivers found for this report")
+
+        receivers = []
+        for ur in user_reports:
+            rid = str(ur.receiver.project_member_id)
+            receiver_domain = self._project_member_management.get_member(rid)
+            if receiver_domain is None:
+                # Should not happen if data integrity is correct, but keep going safely.
+                continue
+            receivers.append(receiver_domain)
 
         # --- Score calculation (use Review domain method only) ---
         reporter_score = int(self._review.calculate_player_score(facts, report_domain.sentiment_score))
@@ -669,9 +700,9 @@ class Game:
         user_item = (
             UserItem.objects
             .select_related("item", "item__effects")
-            .get(item_id=item_id, project_member=player.project_member)
+            .filter(item_id=item_id, project_member=player.project_member)
         )
-        item = user_item.item
+        item = user_item[0].item
         effect = item.effects
 
         # consume item first (so it can't be used twice)

@@ -47,9 +47,16 @@ def get_project_logs(request, project_id):
     """
     Get all logs for a specific project.
 
+    Query params:
+    - time_begin: ISO 8601 datetime or date string; filters created_at > time_begin
+    
     Returns logs including task lifecycle events and game mechanics events.
     """
     try:
+        # Parse time_begin query parameter
+        time_begin_raw = request.query_params.get("time_begin")
+        time_begin = _parse_time_begin(time_begin_raw)
+        
         cur_user = request.user
         user = BusinessUser.objects.get(auth_user=cur_user)
         
@@ -67,7 +74,7 @@ def get_project_logs(request, project_id):
         def _load() -> dict:
             log_service = TaskLogQueryService()
             # get_game_logs includes logs related to the project through tasks, project_members, or project_bosses
-            logs = log_service.get_game_logs(project_id)
+            logs = log_service.get_game_logs(project_id, time_begin=time_begin)
             logs_data = [asdict(log) for log in logs]
             return {
                 "project_id": str(project_id),
@@ -75,13 +82,20 @@ def get_project_logs(request, project_id):
                 "count": len(logs_data),
             }
 
+        # Include time_begin in cache key if provided (different time_begin = different cache entry)
+        cache_key = cache_svc.keys.project_game_logs(project_id)
+        if time_begin is not None:
+            cache_key = f"{cache_key}:time_begin:{time_begin.isoformat()}"
+
         payload = cache_svc.read_through(
-            key=cache_svc.keys.project_game_logs(project_id),
+            key=cache_key,
             ttl_seconds=5,
             loader=_load,
         )
 
         return Response(payload, status=status.HTTP_200_OK)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     except Project.DoesNotExist:
         return Response(
             {"error": "Project not found"},
