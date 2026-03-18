@@ -289,6 +289,9 @@ FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 # AI Service
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:5000")
 
+# ETL Service
+ETL_SERVICE_URL = os.getenv("ETL_SERVICE_URL", "http://localhost:8088")
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
