@@ -18,6 +18,7 @@ urlpatterns = [
     path("auth/status/", check_auth_status),
     path("auth/refresh/", refresh_token),
     path("me/", me),
+    path("me/achievements/", me_achievements),
     # ----- User URLs -----
     path("users/business/", get_all_business_users, name="get_all_business_users"),
     path("leaderboard/", get_global_leaderboard, name="get_global_leaderboard"),

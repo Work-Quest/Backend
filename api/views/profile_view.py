@@ -1,12 +1,12 @@
-
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from api.services.auth_service import register_user, login_user
-from rest_framework import status
+
 from api.models import BusinessUser
 from api.services.cache_service import CacheService
 from api.services.project_service import ProjectService
+from api.services.achievement_service import get_overall_achievement_ids_for_user
 
 
 @api_view(["GET"])
@@ -162,6 +162,24 @@ def get_user_defeated_bosses(request):
         )
     except Exception as e:
         return Response(
-            {"error": str(e)},
+            {"error": str(e)}, 
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+      
+def me_achievements(request):
+    """
+    GET /me/achievements/
+
+    Returns overall achievement IDs the authenticated user has unlocked
+    across all projects (for profile page).
+    """
+    try:
+        user = request.user
+        business_user = BusinessUser.objects.get(auth_user=user)
+        achievement_ids = get_overall_achievement_ids_for_user(business_user)
+        return Response({"achievement_ids": achievement_ids}, status=status.HTTP_200_OK)
+    except BusinessUser.DoesNotExist:
+        return Response(
+            {"error": "Business user profile not found"},
             status=status.HTTP_400_BAD_REQUEST,
         )
