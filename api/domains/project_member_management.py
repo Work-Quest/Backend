@@ -12,7 +12,9 @@ class ProjectMemberManagement:
         Return list of ProjectMember domain objects.
         """
         if self._members is None:
-            model_members = ProjectMemberModel.objects.filter(project=self.project)
+            model_members = ProjectMemberModel.objects.filter(
+                project=self.project
+            ).select_related("user")
             self._members = [ProjectMemberDomain(member) for member in model_members]
         return self._members
 

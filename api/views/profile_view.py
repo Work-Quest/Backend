@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 import re
 
-from api.models import BusinessUser
+from api.models import BusinessUser, ProjectMember
 from api.services.cache_service import CacheService
 from api.services.project_service import ProjectService
 from api.services.achievement_service import get_overall_achievement_ids_for_user
@@ -153,6 +153,11 @@ def me(request):
         )
         cache_svc.delete(cache_svc.keys.user_me(user.id))
         cache_svc.invalidate_all_business_users()
+        # Project member lists cache avatar/character fields — refresh for all joined projects.
+        for pid in ProjectMember.objects.filter(user=user_data).values_list(
+            "project_id", flat=True
+        ):
+            cache_svc.invalidate_project_members(pid)
 
         return Response({"message": "Profile updated."}, status=status.HTTP_200_OK)
 

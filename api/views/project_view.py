@@ -416,6 +416,8 @@ def get_all_project_members(request, project_id):
                 "username": i.user.username,
                 "hp": i.hp,
                 "status": i.status,
+                "selected_character_id": i.user.selected_character_id,
+                "bg_color_id": i.user.bg_color_id,
             }
             members_data.append(metadata)
         return members_data
