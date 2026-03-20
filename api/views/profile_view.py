@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+import re
 
 from api.models import BusinessUser
 from api.services.cache_service import CacheService
@@ -21,8 +22,62 @@ def me(request):
         except BusinessUser.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        name = request.data.get("name")
+        username = request.data.get("username")
         selected_character_id = request.data.get("selected_character_id")
         bg_color_id = request.data.get("bg_color_id")
+        is_first_time = request.data.get("is_first_time")
+
+        if name is not None:
+            if not isinstance(name, str):
+                return Response(
+                    {"error": "name must be a string."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            cleaned_name = name.strip()
+            if not cleaned_name:
+                return Response(
+                    {"error": "name cannot be empty."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_data.name = cleaned_name
+
+        if username is not None:
+            if not user_data.is_first_time:
+                return Response(
+                    {"error": "username can only be set during first-time setup."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not isinstance(username, str):
+                return Response(
+                    {"error": "username must be a string."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            cleaned_username = username.strip()
+            if cleaned_username.startswith("@"):
+                return Response(
+                    {"error": "username must not start with @."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            cleaned_username = cleaned_username.lower()
+            if not cleaned_username:
+                return Response(
+                    {"error": "username cannot be empty."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not re.fullmatch(r"[a-z0-9]+", cleaned_username):
+                return Response(
+                    {"error": "Adventure tag must contain only lowercase letters and numbers (no spaces or special characters)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if BusinessUser.objects.filter(username=cleaned_username).exclude(user_id=user_data.user_id).exists():
+                return Response(
+                    {"error": "Adventure tag already exists."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_data.username = cleaned_username
+            user_data.auth_user.username = cleaned_username
+            user_data.auth_user.save(update_fields=["username"])
 
         if selected_character_id is not None:
             try:
@@ -54,13 +109,48 @@ def me(request):
                 )
             user_data.bg_color_id = bg_color_id
 
-        if selected_character_id is None and bg_color_id is None:
+        if is_first_time is not None:
+            if isinstance(is_first_time, bool):
+                parsed_is_first_time = is_first_time
+            elif isinstance(is_first_time, str):
+                lowered = is_first_time.strip().lower()
+                if lowered in {"true", "1", "yes", "y", "on"}:
+                    parsed_is_first_time = True
+                elif lowered in {"false", "0", "no", "n", "off"}:
+                    parsed_is_first_time = False
+                else:
+                    return Response(
+                        {"error": "is_first_time must be a boolean."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                return Response(
+                    {"error": "is_first_time must be a boolean."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_data.is_first_time = parsed_is_first_time
+
+        if (
+            name is None
+            and username is None
+            and selected_character_id is None
+            and bg_color_id is None
+            and is_first_time is None
+        ):
             return Response(
                 {"error": "No updatable fields provided."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user_data.save(update_fields=["selected_character_id", "bg_color_id"])
+        user_data.save(
+            update_fields=[
+                "name",
+                "username",
+                "selected_character_id",
+                "bg_color_id",
+                "is_first_time",
+            ]
+        )
         cache_svc.delete(cache_svc.keys.user_me(user.id))
         cache_svc.invalidate_all_business_users()
 
@@ -76,6 +166,7 @@ def me(request):
             "profile_img": userData.profile_img,
             "selected_character_id": userData.selected_character_id,
             "bg_color_id": userData.bg_color_id,
+            "is_first_time": userData.is_first_time,
         }
 
     data = cache_svc.read_through(

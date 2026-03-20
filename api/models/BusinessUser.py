@@ -22,6 +22,7 @@ class BusinessUser(models.Model):
         default=1,
         validators=[MinValueValidator(1), MaxValueValidator(8)],
     )
+    is_first_time = models.BooleanField(default=True)
 
     def __str__(self):
         return self.username
