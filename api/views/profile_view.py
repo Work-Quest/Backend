@@ -166,6 +166,8 @@ def get_user_defeated_bosses(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
       
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def me_achievements(request):
     """
     GET /me/achievements/
@@ -175,6 +177,11 @@ def me_achievements(request):
     """
     try:
         user = request.user
+        if not user.is_authenticated:
+            return Response(
+                {"error": "Authentication required"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
         business_user = BusinessUser.objects.get(auth_user=user)
         achievement_ids = get_overall_achievement_ids_for_user(business_user)
         return Response({"achievement_ids": achievement_ids}, status=status.HTTP_200_OK)
