@@ -11,7 +11,6 @@ class RefreshTokenMiddleware:
 
         new_access = getattr(request, "_new_access_token", None)
         if new_access:
-            print("Setting new access token cookie in response")
             response.set_cookie(
                 key="access",
                 value=new_access,
