@@ -4,6 +4,12 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework.exceptions import AuthenticationFailed
 
 class CookieJWTAuthentication(JWTAuthentication):
+    """
+    1) HTTP-only cookie `access` (primary for same-site / desktop browsers)
+    2) Authorization: Bearer <access> (fallback when cross-site cookies are blocked)
+    3) Rotate access via HTTP-only `refresh` cookie when access is missing/expired
+    """
+
     def authenticate(self, request):
         access_token = request.COOKIES.get("access")
 
@@ -20,8 +26,7 @@ class CookieJWTAuthentication(JWTAuthentication):
                 # Also: continue to try header-based auth below (e.g. internal services / ETL).
                 pass
 
-        # Fallback: allow standard SimpleJWT header auth (Authorization: Bearer <token>)
-        # This enables non-browser clients that don't have access to HTTP-only cookies.
+        # Fallback: Authorization: Bearer <token> (SimpleJWT)
         try:
             header_auth = super().authenticate(request)
             if header_auth is not None:
@@ -29,14 +34,13 @@ class CookieJWTAuthentication(JWTAuthentication):
         except (TokenError, InvalidToken, AuthenticationFailed):
             # Be permissive (same reasoning as above); let permissions decide.
             pass
-        
-        # Try refresh token
+
+        # Try refresh token (cookie only; body-based refresh uses /auth/refresh/)
         refresh_token = request.COOKIES.get("refresh")
         if not refresh_token:
             return None
-        
+
         try:
-            print("Attempting to refresh access token using refresh token")
             refresh = RefreshToken(refresh_token)
             new_access = str(refresh.access_token)
 

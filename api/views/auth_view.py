@@ -95,8 +95,13 @@ def login(request):
         return Response({"error": "Invalid credentials"}, status=401)
 
     response = Response(
-        {"username": user.username},
-        status=status.HTTP_200_OK
+        {
+            "username": user.username,
+            # Also returned for clients where cross-site HTTP-only cookies are blocked (e.g. Safari).
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
+        },
+        status=status.HTTP_200_OK,
     )
 
     cookie_kwargs = _cookie_kwargs()
@@ -186,8 +191,14 @@ def google_login(request):
         social=True        
     )
 
-    # Issue cookies
-    response = Response({"username": user.username})
+    # Issue cookies + body tokens for Bearer fallback (Safari / cross-site)
+    response = Response(
+        {
+            "username": user.username,
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
+        }
+    )
 
     cookie_kwargs = _cookie_kwargs()
 
@@ -213,7 +224,7 @@ def google_login(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def refresh_token(request):
-    refresh_token = request.COOKIES.get("refresh")
+    refresh_token = request.COOKIES.get("refresh") or request.data.get("refresh")
 
     if not refresh_token:
         return Response({"error": "No refresh token"}, status=401)
@@ -224,7 +235,12 @@ def refresh_token(request):
     except Exception:
         return Response({"error": "Invalid refresh token"}, status=401)
 
-    response = Response({"message": "Token refreshed"})
+    response = Response(
+        {
+            "message": "Token refreshed",
+            "access": access,
+        }
+    )
     cookie_kwargs = _cookie_kwargs()
     response.set_cookie(
         key="access",
