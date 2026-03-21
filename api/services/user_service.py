@@ -13,6 +13,9 @@ class UserService:
                 "name": u.name,
                 "email": u.email,
                 "profile_img": u.profile_img,
+                "selected_character_id": u.selected_character_id,
+                "bg_color_id": u.bg_color_id,
+                "is_first_time": u.is_first_time,
             }
             for u in users
         ]

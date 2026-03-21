@@ -437,6 +437,10 @@ class ProjectService:
         # Create a mapping of user_id to max_score
         max_score_map = {item['user_id']: item['max_score'] for item in user_max_scores}
         
+        # Resolve profile customizations for leaderboard avatars.
+        from api.models import BusinessUser
+        users_by_id = {str(u.user_id): u for u in BusinessUser.objects.all()}
+
         # Get one record per user with their max score
         # Use distinct on user_id with ordering to get the most recent record if there are ties
         leaderboard_data = []
@@ -451,16 +455,20 @@ class ProjectService:
             if user_id not in seen_users:
                 # Check if this record has the max score for this user
                 if record.score == max_score_map.get(user_id):
+                    user_key = str(user_id)
+                    user_profile = users_by_id.get(user_key)
                     leaderboard_data.append({
                         'order': len(leaderboard_data) + 1,
                         'name': record.name,
                         'username': record.username,
-                        'user_id': str(record.user_id),  # Add user_id for profile navigation
+                        'user_id': user_key,  # Add user_id for profile navigation
                         'score': record.score,
                         'damageDeal': record.damage_deal,
                         'damageReceive': record.damage_receive,
                         'status': record.status,
                         'isMVP': False,  # Global leaderboard doesn't have MVP
+                        'selected_character_id': user_profile.selected_character_id if user_profile else 1,
+                        'bg_color_id': user_profile.bg_color_id if user_profile else 1,
                     })
                     seen_users.add(user_id)
                     

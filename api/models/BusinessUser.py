@@ -1,6 +1,7 @@
 from django.db import models
 import uuid
 from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class BusinessUser(models.Model):
     auth_user = models.OneToOneField(
@@ -13,6 +14,15 @@ class BusinessUser(models.Model):
     username = models.CharField(max_length=100, unique=True)
     email = models.CharField(max_length=100, unique=True)
     profile_img = models.CharField(max_length=255,null=True, blank=True)
+    selected_character_id = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(9)],
+    )
+    bg_color_id = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(8)],
+    )
+    is_first_time = models.BooleanField(default=True)
 
     def __str__(self):
         return self.username

@@ -2,18 +2,164 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+import re
 
-from api.models import BusinessUser
+from api.models import BusinessUser, ProjectMember
 from api.services.cache_service import CacheService
 from api.services.project_service import ProjectService
 from api.services.achievement_service import get_overall_achievement_ids_for_user
 
 
-@api_view(["GET"])
+@api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def me(request):
     user = request.user
     cache_svc = CacheService()
+
+    if request.method == "PATCH":
+        try:
+            user_data = BusinessUser.objects.get(username=user.username)
+        except BusinessUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        name = request.data.get("name")
+        username = request.data.get("username")
+        selected_character_id = request.data.get("selected_character_id")
+        bg_color_id = request.data.get("bg_color_id")
+        is_first_time = request.data.get("is_first_time")
+
+        if name is not None:
+            if not isinstance(name, str):
+                return Response(
+                    {"error": "name must be a string."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            cleaned_name = name.strip()
+            if not cleaned_name:
+                return Response(
+                    {"error": "name cannot be empty."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_data.name = cleaned_name
+
+        if username is not None:
+            if not user_data.is_first_time:
+                return Response(
+                    {"error": "username can only be set during first-time setup."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not isinstance(username, str):
+                return Response(
+                    {"error": "username must be a string."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            cleaned_username = username.strip()
+            if cleaned_username.startswith("@"):
+                return Response(
+                    {"error": "username must not start with @."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            cleaned_username = cleaned_username.lower()
+            if not cleaned_username:
+                return Response(
+                    {"error": "username cannot be empty."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not re.fullmatch(r"[a-z0-9]+", cleaned_username):
+                return Response(
+                    {"error": "Adventure tag must contain only lowercase letters and numbers (no spaces or special characters)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if BusinessUser.objects.filter(username=cleaned_username).exclude(user_id=user_data.user_id).exists():
+                return Response(
+                    {"error": "Adventure tag already exists."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_data.username = cleaned_username
+            user_data.auth_user.username = cleaned_username
+            user_data.auth_user.save(update_fields=["username"])
+
+        if selected_character_id is not None:
+            try:
+                selected_character_id = int(selected_character_id)
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "selected_character_id must be an integer."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if selected_character_id < 1 or selected_character_id > 9:
+                return Response(
+                    {"error": "selected_character_id must be between 1 and 9."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_data.selected_character_id = selected_character_id
+
+        if bg_color_id is not None:
+            try:
+                bg_color_id = int(bg_color_id)
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "bg_color_id must be an integer."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if bg_color_id < 1 or bg_color_id > 8:
+                return Response(
+                    {"error": "bg_color_id must be between 1 and 8."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_data.bg_color_id = bg_color_id
+
+        if is_first_time is not None:
+            if isinstance(is_first_time, bool):
+                parsed_is_first_time = is_first_time
+            elif isinstance(is_first_time, str):
+                lowered = is_first_time.strip().lower()
+                if lowered in {"true", "1", "yes", "y", "on"}:
+                    parsed_is_first_time = True
+                elif lowered in {"false", "0", "no", "n", "off"}:
+                    parsed_is_first_time = False
+                else:
+                    return Response(
+                        {"error": "is_first_time must be a boolean."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                return Response(
+                    {"error": "is_first_time must be a boolean."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user_data.is_first_time = parsed_is_first_time
+
+        if (
+            name is None
+            and username is None
+            and selected_character_id is None
+            and bg_color_id is None
+            and is_first_time is None
+        ):
+            return Response(
+                {"error": "No updatable fields provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_data.save(
+            update_fields=[
+                "name",
+                "username",
+                "selected_character_id",
+                "bg_color_id",
+                "is_first_time",
+            ]
+        )
+        cache_svc.delete(cache_svc.keys.user_me(user.id))
+        cache_svc.invalidate_all_business_users()
+        # Project member lists cache avatar/character fields — refresh for all joined projects.
+        for pid in ProjectMember.objects.filter(user=user_data).values_list(
+            "project_id", flat=True
+        ):
+            cache_svc.invalidate_project_members(pid)
+
+        return Response({"message": "Profile updated."}, status=status.HTTP_200_OK)
 
     def _load():
         userData = BusinessUser.objects.get(username=user.username)
@@ -23,6 +169,9 @@ def me(request):
             "name": userData.name,
             "email": userData.email,
             "profile_img": userData.profile_img,
+            "selected_character_id": userData.selected_character_id,
+            "bg_color_id": userData.bg_color_id,
+            "is_first_time": userData.is_first_time,
         }
 
     data = cache_svc.read_through(
