@@ -22,7 +22,7 @@ Workflow:
    - no critical QA findings remain.
 
 Stop conditions:
-- PASS: all relevant tests pass and no critical issues.
+- PASS: all relevant tests pass, test coverage more than 80% and no critical issues.
 - FAIL: blocked by missing environment, tooling errors, or repeated non-progress.
 - If FAIL, return exact blocker and concrete next action.
 

@@ -9,6 +9,7 @@ Primary mission:
 - Review changed code for correctness, maintainability, and risk.
 - Run all test.
 - Run build/verification commands.
+- Check test coverage
 - Deliver concise QA feedback with pass/fail status and next actions.
 
 When invoked:
@@ -35,6 +36,7 @@ Reporting format:
 - Build Results:
   - commands run
   - passed/failed summary
+  - test coverage
 - Recommended Next Steps for QA
 
 Rules:
