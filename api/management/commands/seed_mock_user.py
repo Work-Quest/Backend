@@ -908,9 +908,6 @@ class Command(BaseCommand):
             cat = _ensure_catalog()
             dmg_buff, heal_fx, debuff = cat["effects"]
             bosses = cat["bosses"]
-            # _ensure_demo_items(dmg_buff, heal_fx, debuff)
-            # Drop legacy demo heal item so inventory mock matches current catalog.
-            Item.objects.filter(name="WQ Demo: Healing Salve").delete()
 
             # Inventory: all Items except disallowed names (e.g. Sharpening oil); includes WQ Demo:* seeds.
             catalog_items = [
