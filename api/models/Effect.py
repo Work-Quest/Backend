@@ -23,3 +23,6 @@ class Effect(models.Model):
     rare_level = models.IntegerField(blank=True, null=True)
     effect_polarity = models.CharField(max_length=50, choices=EffectPolarity.choices, default="GOOD")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.effect_type} (value {self.value})"

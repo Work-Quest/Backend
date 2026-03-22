@@ -15,3 +15,6 @@ class Item(models.Model):
         on_delete=models.DO_NOTHING
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return self.name

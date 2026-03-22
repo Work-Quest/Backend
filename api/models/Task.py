@@ -19,3 +19,6 @@ class Task(models.Model):
     deadline = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"{self.task_name} — {self.project.project_name}"

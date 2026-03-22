@@ -19,5 +19,5 @@ class Project(models.Model):
     deadline_decision = models.CharField(max_length=20, choices=[('closed', 'Closed'), ('continued', 'Continued')], null=True, blank=True)
     deadline_decision_date = models.DateTimeField(null=True, blank=True)
     
-    def __str__(self):
-        return f"Project {self.project_id}"
+    def __str__(self) -> str:
+        return self.project_name

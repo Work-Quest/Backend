@@ -17,3 +17,6 @@ class ProjectMember(models.Model):
     max_hp = models.IntegerField(default=100)
     score = models.IntegerField(default=0)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Alive")
+
+    def __str__(self) -> str:
+        return f"{self.user.username} — {self.project.project_name}"
