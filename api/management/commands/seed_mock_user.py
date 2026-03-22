@@ -224,33 +224,33 @@ def _ensure_special_summon_boss() -> Boss:
     return sp
 
 
-# Stable Item.name seeds so reruns are idempotent and UserItem always has catalog rows.
-_DEMO_ITEM_SEEDS: list[tuple[str, str, str]] = [
-    ("WQ Demo: Damage Tonic", "Tied to DAMAGE_BUFF effect for inventory UI.", "DAMAGE_BUFF"),
-    ("WQ Demo: Weakening Draft", "Tied to DAMAGE_DEBUFF effect.", "DAMAGE_DEBUFF"),
-]
+# # Stable Item.name seeds so reruns are idempotent and UserItem always has catalog rows.
+# _DEMO_ITEM_SEEDS: list[tuple[str, str, str]] = [
+#     ("WQ Demo: Damage Tonic", "Tied to DAMAGE_BUFF effect for inventory UI.", "DAMAGE_BUFF"),
+#     ("WQ Demo: Weakening Draft", "Tied to DAMAGE_DEBUFF effect.", "DAMAGE_DEBUFF"),
+# ]
 
 
-def _ensure_demo_items(
-    dmg_buff: Effect,
-    heal_fx: Effect,
-    debuff: Effect,
-) -> None:
-    """Create demo Item rows if missing (UUID PK); wire to Effect FKs like manual admin entry."""
-    effect_map = {
-        "DAMAGE_BUFF": dmg_buff,
-        "HEAL": heal_fx,
-        "DAMAGE_DEBUFF": debuff,
-    }
-    for name, description, eff_key in _DEMO_ITEM_SEEDS:
-        eff = effect_map[eff_key]
-        it = Item.objects.filter(name=name).first()
-        if it is None:
-            Item.objects.create(name=name, description=description, effects=eff)
-        elif it.effects_id != eff.effect_id:
-            it.effects = eff
-            it.description = description or it.description
-            it.save(update_fields=["effects", "description"])
+# def _ensure_demo_items(
+#     dmg_buff: Effect,
+#     heal_fx: Effect,
+#     debuff: Effect,
+# ) -> None:
+#     """Create demo Item rows if missing (UUID PK); wire to Effect FKs like manual admin entry."""
+#     effect_map = {
+#         "DAMAGE_BUFF": dmg_buff,
+#         "HEAL": heal_fx,
+#         "DAMAGE_DEBUFF": debuff,
+#     }
+#     for name, description, eff_key in _DEMO_ITEM_SEEDS:
+#         eff = effect_map[eff_key]
+#         it = Item.objects.filter(name=name).first()
+#         if it is None:
+#             Item.objects.create(name=name, description=description, effects=eff)
+#         elif it.effects_id != eff.effect_id:
+#             it.effects = eff
+#             it.description = description or it.description
+#             it.save(update_fields=["effects", "description"])
 
 
 # --- content helpers (read like real product / eng work) -----------------
@@ -908,7 +908,7 @@ class Command(BaseCommand):
             cat = _ensure_catalog()
             dmg_buff, heal_fx, debuff = cat["effects"]
             bosses = cat["bosses"]
-            _ensure_demo_items(dmg_buff, heal_fx, debuff)
+            # _ensure_demo_items(dmg_buff, heal_fx, debuff)
             # Drop legacy demo heal item so inventory mock matches current catalog.
             Item.objects.filter(name="WQ Demo: Healing Salve").delete()
 

@@ -606,7 +606,7 @@ def get_dashboard(request, project_id):
             )
         
         project_service = ProjectService()
-        dashboard_data = project_service.get_dashboard_data(project_id)
+        dashboard_data = project_service.get_dashboard_data(project_id, business_user=user)
         
         return Response(
             dashboard_data,

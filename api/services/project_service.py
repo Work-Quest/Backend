@@ -333,9 +333,10 @@ class ProjectService:
             "reduction_percent": reduction_percent,
         }
 
-    def get_dashboard_data(self, project_id: str):
+    def get_dashboard_data(self, project_id: str, business_user=None):
         """
         Get dashboard visualization data including task status counts, burn down chart data, and project details.
+        When ``business_user`` is set, includes ``achievementIds`` for that member on this project.
         """
         project = ProjectModel.objects.get(project_id=project_id)
         
@@ -428,7 +429,27 @@ class ProjectService:
         formatted_deadline = None
         if project.deadline:
             formatted_deadline = project.deadline.strftime('%m/%d/%Y')
-        
+
+        achievement_ids: list[str] = []
+        if business_user is not None:
+            try:
+                member = ProjectMember.objects.get(project=project, user=business_user)
+            except ProjectMember.DoesNotExist:
+                member = None
+            if member is not None:
+                from api.models.UserFeedback import UserFeedback
+                from api.services.achievement_service import compute_achievement_ids
+
+                fb = (
+                    UserFeedback.objects.filter(user=member, project=project)
+                    .select_related("user", "project")
+                    .first()
+                )
+                if fb is not None:
+                    unlocked = set(compute_achievement_ids(fb))
+                    canonical = ["01", "02", "03", "04", "05", "06"]
+                    achievement_ids = [a for a in canonical if a in unlocked]
+
         return {
             'taskStatusCounts': task_status_counts,
             'burnDownData': burn_down_data,
@@ -438,7 +459,8 @@ class ProjectService:
                 'estimatedFinishTime': estimated_finish_time,
                 'totalTasks': total_tasks,
                 'completedTasks': task_status_counts['done']
-            }
+            },
+            'achievementIds': achievement_ids,
         }
 
     def get_global_leaderboard(self):
@@ -556,51 +578,58 @@ class ProjectService:
     def get_user_profile_stats(self, user=None, user_id=None):
         """
         Get user profile statistics from ProjectEndSummary table.
-        Returns highest score, project count, and total bosses defeated.
+        Returns highest score, project count, total bosses defeated, and achievement progress.
         Accepts either a BusinessUser object or user_id string.
         """
         from api.models import BusinessUser
-        
+        from api.services.achievement_service import get_overall_achievement_ids_for_user
+
+        achievements_total = 6  # canonical IDs 01–06, matches frontend ACHIEVEMENT_IDS
+
+        def stats_base(**kwargs):
+            base = {
+                'highest_score': 0,
+                'project_count': 0,
+                'total_bosses_defeated': 0,
+                'achievements_unlocked': 0,
+                'achievements_total': achievements_total,
+            }
+            base.update(kwargs)
+            return base
+
         # Resolve user object if user_id is provided
         if user_id and not user:
             try:
                 user = BusinessUser.objects.get(user_id=user_id)
             except BusinessUser.DoesNotExist:
-                return {
-                    'highest_score': 0,
-                    'project_count': 0,
-                    'total_bosses_defeated': 0,
-                }
-        
+                return stats_base()
+
         if not user:
-            return {
-                'highest_score': 0,
-                'project_count': 0,
-                'total_bosses_defeated': 0,
-            }
-        
+            return stats_base()
+
+        achievement_ids = get_overall_achievement_ids_for_user(user)
+        achievements_unlocked = len(achievement_ids)
+
         summaries = ProjectEndSummary.objects.filter(user_id=user.user_id)
-        
+
         if not summaries.exists():
-            return {
-                'highest_score': 0,
-                'project_count': 0,
-                'total_bosses_defeated': 0,
-            }
-        
+            return stats_base(achievements_unlocked=achievements_unlocked)
+
         # Calculate highest score
         highest_score = summaries.aggregate(max_score=Max('score'))['max_score'] or 0
-        
+
         # Count unique projects
         project_count = ProjectMember.objects.filter(user=user).count()
-        
+
         # Sum total bosses defeated (sum of boss_count from all records)
         total_bosses_defeated = summaries.aggregate(total=Sum('boss_count'))['total'] or 0
-        
+
         return {
             'highest_score': highest_score,
             'project_count': project_count,
             'total_bosses_defeated': total_bosses_defeated,
+            'achievements_unlocked': achievements_unlocked,
+            'achievements_total': achievements_total,
         }
 
     def get_user_defeated_bosses(self, user=None, user_id=None):
