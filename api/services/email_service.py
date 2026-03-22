@@ -9,6 +9,7 @@ import resend
 class EmailService:
 
     def send_invite_email(request, email_metadata, project_metadata):
+        resend.api_key = settings.RESEND_API_KEY
         # Allow disabling outbound emails in certain environments (e.g., local dev / tests)
         if not getattr(settings, "EMAIL_NOTIFICATIONS_ENABLED", True):
             return False
