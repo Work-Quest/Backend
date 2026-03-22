@@ -4,8 +4,8 @@ from django.core.mail import EmailMessage
 from django.conf import settings
 import requests
 import os
+import resend
 
-url = "https://mailserver.automationlounge.com/api/v1/messages/send"
 class EmailService:
 
     def send_invite_email(request, email_metadata, project_metadata):
@@ -19,20 +19,12 @@ class EmailService:
             'url' : project_metadata.get("invite_url"),
         })
 
-        payload = {
+        params: resend.Emails.SendParams = {
+            "from": "WorkQuest Notification <noreply@workquest.best>",
             "to": email_metadata.get("recipients"),
             "subject": email_metadata.get("subject"),
-            "html": html_content
+            "html": html_content,
         }
-        headers = {
-            "Authorization": f"Bearer {os.getenv('API_MAIL_KEY')}",
-            "Content-Type": "application/json",
-        }
-
-        response = requests.post(url, json=payload, headers=headers)
-
-        if response.status_code != 200:
-            return False
-
+        email = resend.Emails.send(params)
 
         return True
