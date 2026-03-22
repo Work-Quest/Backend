@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
@@ -11,3 +11,25 @@ class AuthServiceTest(SimpleTestCase):
         user, tokens = login_user("unknown", password="bad")
         self.assertIsNone(user)
         self.assertIsNone(tokens)
+
+    @patch("api.services.auth_service.RefreshToken")
+    @patch("api.services.auth_service.authenticate")
+    def test_login_user_returns_user_and_tokens_when_authenticate_succeeds(
+        self, mock_auth, mock_refresh_cls
+    ):
+        mock_user = MagicMock()
+        mock_auth.return_value = mock_user
+        mock_access = MagicMock()
+        mock_access.__str__ = lambda self=None: "access-jwt"
+        mock_refresh = MagicMock()
+        mock_refresh.access_token = mock_access
+        mock_refresh.__str__ = lambda self=None: "refresh-jwt"
+        mock_refresh_cls.for_user.return_value = mock_refresh
+
+        user, tokens = login_user("alice", password="secret")
+
+        self.assertIs(user, mock_user)
+        self.assertEqual(
+            tokens,
+            {"access": "access-jwt", "refresh": "refresh-jwt"},
+        )
