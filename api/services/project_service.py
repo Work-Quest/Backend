@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from api.services.game_service import GameService
 from api.models import TaskLog, ProjectBoss, ProjectEndSummary
+from api.models.BusinessUser import BusinessUser
 from api.models.Task import Task
 from datetime import timedelta
 from collections import defaultdict
@@ -175,6 +176,35 @@ class ProjectService:
         existing = ProjectEndSummary.objects.filter(project_id=project_id)
         if existing.exists():
             first = existing.first()
+            rows = list(
+                existing.order_by("order").values(
+                    "order",
+                    "user_id",
+                    "name",
+                    "username",
+                    "score",
+                    "damage_deal",
+                    "damage_receive",
+                    "status",
+                    "is_mvp",
+                )
+            )
+            user_ids = [r["user_id"] for r in rows]
+            profiles = {
+                str(u.user_id): u
+                for u in BusinessUser.objects.filter(user_id__in=user_ids).only(
+                    "user_id", "selected_character_id", "bg_color_id"
+                )
+            }
+
+            def _avatar_fields(uid):
+                p = profiles.get(str(uid))
+                if not p:
+                    return {"selected_character_id": 1, "bg_color_id": 1}
+                return {
+                    "selected_character_id": p.selected_character_id,
+                    "bg_color_id": p.bg_color_id,
+                }
 
             return {
                 "users": [
@@ -188,18 +218,9 @@ class ProjectService:
                         "damageReceive": item["damage_receive"],
                         "status": item["status"],
                         "isMVP": item["is_mvp"],
+                        **_avatar_fields(item["user_id"]),
                     }
-                    for item in existing.order_by("order").values(
-                        "order",
-                        "user_id",
-                        "name",
-                        "username",
-                        "score",
-                        "damage_deal",
-                        "damage_receive",
-                        "status",
-                        "is_mvp",
-                    )
+                    for item in rows
                 ],
                 "boss_count": first.boss_count,
                 "boss": first.boss,
@@ -259,6 +280,8 @@ class ProjectService:
                     "status": member.status,
                     "isMVP": False,
                     "member_id": str(member.project_member_id),  # Convert UUID to string
+                    "selected_character_id": member.user.selected_character_id,
+                    "bg_color_id": member.user.bg_color_id,
                 }
             )
 
