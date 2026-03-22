@@ -6,6 +6,7 @@ djangorestframework_simplejwt
 python-dotenv
 requests
 huggingface_hub
+resend
 
 # Deployment/runtime
 gunicorn
