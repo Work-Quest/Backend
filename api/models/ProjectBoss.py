@@ -20,3 +20,7 @@ class ProjectBoss(models.Model):
     phase = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self) -> str:
+        boss_name = self.boss.boss_name if self.boss_id else "(no boss)"
+        return f"{boss_name} @ {self.project.project_name}"

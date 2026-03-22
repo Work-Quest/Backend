@@ -1,7 +1,11 @@
-
 from django.db import models
 
+
 class ProjectEndSummary(models.Model):
+    """
+    Per-member snapshot when a project ends. Global leaderboard uses each user's
+    highest score across these rows (top 10 users).
+    """
 
     project_member_id = models.UUIDField(primary_key=True)
 
@@ -35,3 +39,8 @@ class ProjectEndSummary(models.Model):
             models.Index(fields=["project_id"]),
             models.Index(fields=["project_id", "-score"]),
         ]
+        verbose_name = "Project end summary (leaderboard)"
+        verbose_name_plural = "Project end summaries (leaderboard)"
+
+    def __str__(self) -> str:
+        return f"{self.username} — score {self.score} (user {self.user_id})"
