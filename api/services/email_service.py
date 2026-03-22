@@ -26,5 +26,6 @@ class EmailService:
             "html": html_content,
         }
         email = resend.Emails.send(params)
+        print(email)
 
         return True
