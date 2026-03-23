@@ -25,45 +25,45 @@ class feedbackService:
 
         # if don't have feedback existed then call ETL service first, then AI service to get feedback and save to database
         if not user_feedback:
-            # Call ETL service to process data before generating feedback (first-time calculation)
-            if self.ETL_SERVICE_URL:
-                try:
-                    etl_url = (self.ETL_SERVICE_URL or "").strip()
-                    if not etl_url.rstrip("/").endswith("/etl/run"):
-                        etl_url = etl_url.rstrip("/") + "/etl/run"
+            # # Call ETL service to process data before generating feedback (first-time calculation)
+            # if self.ETL_SERVICE_URL:
+            #     try:
+            #         etl_url = (self.ETL_SERVICE_URL or "").strip()
+            #         if not etl_url.rstrip("/").endswith("/etl/run"):
+            #             etl_url = etl_url.rstrip("/") + "/etl/run"
 
-                    etl_response = requests.post(
-                        etl_url,
-                        timeout=300,  # ETL can take a while, allow up to 5 minutes
-                    )
+            #         etl_response = requests.post(
+            #             etl_url,
+            #             timeout=300,  # ETL can take a while, allow up to 5 minutes
+            #         )
 
-                    if etl_response.status_code == 200:
-                        etl_data = etl_response.json() or {}
-                        if etl_data.get("status") == "SUCCESS":
-                            print(f"ETL service completed successfully: {etl_data.get('duration_seconds', 0):.2f}s")
-                        else:
-                            print(f"ETL service completed with status: {etl_data.get('status', 'UNKNOWN')}")
-                    else:
-                        # Log the full error response to see what went wrong
-                        print(f"ETL service returned status code {etl_response.status_code}")
-                        try:
-                            etl_data = etl_response.json() or {}
-                            print(f"ETL Error Details:")
-                            print(f"  Status: {etl_data.get('status', 'UNKNOWN')}")
-                            print(f"  Duration: {etl_data.get('duration_seconds', 0)}s")
-                            if etl_data.get('stderr'):
-                                print(f"  Stderr: {etl_data.get('stderr', '')[:1000]}")  # First 1000 chars
-                            if etl_data.get('stdout'):
-                                print(f"  Stdout: {etl_data.get('stdout', '')[:500]}")  # First 500 chars
-                        except Exception as e:
-                            print(f"Could not parse error response: {e}")
-                            print(f"Response text: {etl_response.text[:500]}")
-                except req_exc.RequestException as e:
-                    print(f"ETL service is unreachable at {etl_url}: {e}. Continuing with feedback generation.")
-                except Exception as e:
-                    print(f"Error calling ETL service: {e}. Continuing with feedback generation.")
-            else:
-                print("ETL_SERVICE_URL not configured, skipping ETL call")
+            #         if etl_response.status_code == 200:
+            #             etl_data = etl_response.json() or {}
+            #             if etl_data.get("status") == "SUCCESS":
+            #                 print(f"ETL service completed successfully: {etl_data.get('duration_seconds', 0):.2f}s")
+            #             else:
+            #                 print(f"ETL service completed with status: {etl_data.get('status', 'UNKNOWN')}")
+            #         else:
+            #             # Log the full error response to see what went wrong
+            #             print(f"ETL service returned status code {etl_response.status_code}")
+            #             try:
+            #                 etl_data = etl_response.json() or {}
+            #                 print(f"ETL Error Details:")
+            #                 print(f"  Status: {etl_data.get('status', 'UNKNOWN')}")
+            #                 print(f"  Duration: {etl_data.get('duration_seconds', 0)}s")
+            #                 if etl_data.get('stderr'):
+            #                     print(f"  Stderr: {etl_data.get('stderr', '')[:1000]}")  # First 1000 chars
+            #                 if etl_data.get('stdout'):
+            #                     print(f"  Stdout: {etl_data.get('stdout', '')[:500]}")  # First 500 chars
+            #             except Exception as e:
+            #                 print(f"Could not parse error response: {e}")
+            #                 print(f"Response text: {etl_response.text[:500]}")
+            #     except req_exc.RequestException as e:
+            #         print(f"ETL service is unreachable at {etl_url}: {e}. Continuing with feedback generation.")
+            #     except Exception as e:
+            #         print(f"Error calling ETL service: {e}. Continuing with feedback generation.")
+            # else:
+            #     print("ETL_SERVICE_URL not configured, skipping ETL call")
             # get user name 
             member = ProjectMember.objects.get(project_member_id=project_member_id)
             user_name = member.user.username
