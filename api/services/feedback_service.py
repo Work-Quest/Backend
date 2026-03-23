@@ -84,7 +84,7 @@ class feedbackService:
                 response = requests.post(
                     url,
                     json=data,
-                    timeout=10,
+                    timeout=300,
                 )
             except req_exc.RequestException as e:
                 raise Exception(f"AI service is unreachable at {url}: {e}")
