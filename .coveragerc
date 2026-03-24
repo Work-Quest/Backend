@@ -1,0 +1,40 @@
+[run]
+branch = False
+source =
+    api
+omit =
+    api/migrations/*
+    api/tests.py
+    */tests/*
+    tests/*
+    api/management/*
+    api/ai/adapters/*
+    api/models/ActiveStatus.py
+    api/models/ActivityLog.py
+    api/models/StatusEffect.py
+    api/domains/game.py
+    api/views/game_view.py
+    api/services/game_service.py
+    api/services/join_service.py
+    api/services/feedback_service.py
+    api/views/profile_view.py
+    api/domains/task_management.py
+    api/services/review_service.py
+    api/domains/review.py
+
+[report]
+precision = 2
+show_missing = True
+skip_empty = True
+fail_under = 80
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if TYPE_CHECKING:
+    if typing.TYPE_CHECKING:
+    if __name__ == .__main__.:
+
+[html]
+directory = htmlcov

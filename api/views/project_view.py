@@ -286,7 +286,6 @@ def batch_invite(request, project_id):
         user = BusinessUser.objects.get(user_id=i)
         emails.append(user.email)
 
-    # todo: env config
     if os.getenv("DB_ENV") == "prod" :
         invite_base_url ="https://workquest-1h39.onrender.com" 
     else:
