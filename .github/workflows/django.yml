@@ -8,8 +8,17 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_ENV: qa
+      DJANGO_DEBUG: "False"
+      DJANGO_SECRET_KEY: ci-github-actions-secret-key-2026-workquest-backend-long
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+      EMAIL_PROVIDER: django
+      EMAIL_NOTIFICATIONS_ENABLED: "False"
+      DJANGO_EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      INTERNAL_SERVICE_API_KEY: ci-internal-service-key
     strategy:
       max-parallel: 4
       matrix:
@@ -25,11 +34,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements-dev.txt
     
-    - name: Set Environment
-      run: |
-        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> $GITHUB_ENV
-        echo "DEBUG=True" >> $GITHUB_ENV
-
     - name: Run tests with coverage (80% gate on measured lines)
       run: |
         python -m coverage erase
