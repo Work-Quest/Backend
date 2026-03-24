@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Optional
 from django.db.models import QuerySet
 from api.dtos.log_dto import ProjectLogReadDTO
 from api.models import TaskLog
@@ -107,7 +108,7 @@ class TaskLogQueryService:
             },
         }
 
-        def _category_for(event_type: str | None) -> str:
+        def _category_for(event_type: Optional[str]) -> str:
             if not event_type:
                 return "UNKNOWN"
             for category, event_types in category_event_types.items():

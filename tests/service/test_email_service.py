@@ -18,6 +18,7 @@ class EmailServiceTest(SimpleTestCase):
     @override_settings(
         EMAIL_NOTIFICATIONS_ENABLED=True,
         DEFAULT_FROM_EMAIL="from@example.com",
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     )
     @patch("api.services.email_service.render_to_string", return_value="<html/>")
     @patch("api.services.email_service.EmailMessage")

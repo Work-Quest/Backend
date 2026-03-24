@@ -95,9 +95,9 @@ class ProjectServiceBulkTest(SimpleTestCase):
         out = ProjectService().get_project_end_summary(MagicMock(), "pid")
         self.assertIn("users", out)
 
-    @patch("api.models.BusinessUser.BusinessUser.objects")
+    @patch("api.models.BusinessUser")
     @patch("api.services.project_service.ProjectEndSummary.objects")
-    def test_get_global_leaderboard_builds_rows(self, mock_pes, mock_bu):
+    def test_get_global_leaderboard_builds_rows(self, mock_pes, mock_bu_cls):
         mock_pes.values.return_value.annotate.return_value = [
             {"user_id": "u1", "max_score": 100}
         ]
@@ -105,7 +105,7 @@ class ProjectServiceBulkTest(SimpleTestCase):
         prof.user_id = "u1"
         prof.selected_character_id = 2
         prof.bg_color_id = 3
-        mock_bu.all.return_value = [prof]
+        mock_bu_cls.objects.all.return_value = [prof]
         rec = MagicMock()
         rec.user_id = "u1"
         rec.score = 100
