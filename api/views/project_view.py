@@ -17,6 +17,7 @@ from api.domains.project import Project as ProjectDomain
 from django.utils import timezone
 from datetime import timedelta
 from api.models.Task import Task
+from api.models.ProjectMember import ProjectMember
 
 # -------------------------
 # Project CRUD
@@ -445,7 +446,6 @@ def deadline_continue(request, project_id):
         project = ProjectModel.objects.get(project_id=project_id)
         
         # Check if user is a member of the project
-        from api.models.ProjectMember import ProjectMember
         if not ProjectMember.objects.filter(project=project, user=user).exists():
             return Response(
                 {"error": "User is not a member of this project."},
@@ -527,7 +527,6 @@ def get_estimate_finish_time(request, project_id):
         project = ProjectModel.objects.get(project_id=project_id)
         
         # Check if user is a member of the project
-        from api.models.ProjectMember import ProjectMember
         if not ProjectMember.objects.filter(project=project, user=user).exists():
             return Response(
                 {"error": "User is not a member of this project."},
@@ -597,7 +596,6 @@ def get_dashboard(request, project_id):
         project = ProjectModel.objects.get(project_id=project_id)
         
         # Check if user is a member of the project
-        from api.models.ProjectMember import ProjectMember
         if not ProjectMember.objects.filter(project=project, user=user).exists():
             return Response(
                 {"error": "User is not a member of this project."},

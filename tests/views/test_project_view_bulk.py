@@ -245,7 +245,7 @@ class ProjectViewBulkTest(SimpleTestCase):
 
     @patch("api.views.project_view.CacheService")
     @patch("api.views.project_view.timezone")
-    @patch("api.models.ProjectMember.ProjectMember.objects.filter")
+    @patch("api.views.project_view.ProjectMember.objects.filter")
     @patch("api.views.project_view.ProjectModel.objects.get")
     @patch("api.views.project_view.BusinessUser.objects.get")
     def test_deadline_continue_success(
@@ -275,15 +275,15 @@ class ProjectViewBulkTest(SimpleTestCase):
         self.assertEqual(resp.status_code, 200)
 
     @patch("api.views.project_view.Task")
-    @patch("api.models.ProjectMember.ProjectMember.objects.filter")
+    @patch("api.views.project_view.ProjectMember.objects.filter")
     @patch("api.views.project_view.ProjectModel.objects.get")
     @patch("api.views.project_view.BusinessUser.objects.get")
     def test_get_estimate_finish_time_no_completed(
-        self, mock_bu, mock_pget, mock_pm, mock_task
+        self, mock_bu, mock_pget, mock_pm_filter, mock_task
     ):
         mock_bu.return_value = MagicMock()
         mock_pget.return_value = MagicMock()
-        mock_pm.return_value.exists.return_value = True
+        mock_pm_filter.return_value.exists.return_value = True
         qs = MagicMock()
         qs.exists.return_value = False
         mock_task.objects.filter.return_value = qs
@@ -292,13 +292,13 @@ class ProjectViewBulkTest(SimpleTestCase):
         self.assertEqual(resp.status_code, 200)
 
     @patch("api.views.project_view.ProjectService")
-    @patch("api.models.ProjectMember.ProjectMember.objects.filter")
+    @patch("api.views.project_view.ProjectMember.objects.filter")
     @patch("api.views.project_view.ProjectModel.objects.get")
     @patch("api.views.project_view.BusinessUser.objects.get")
-    def test_get_dashboard_ok(self, mock_bu, mock_pget, mock_pm, mock_psvc):
+    def test_get_dashboard_ok(self, mock_bu, mock_pget, mock_pm_filter, mock_psvc):
         mock_bu.return_value = MagicMock()
         mock_pget.return_value = MagicMock()
-        mock_pm.return_value.exists.return_value = True
+        mock_pm_filter.return_value.exists.return_value = True
         mock_psvc.return_value.get_dashboard_data.return_value = {"d": 1}
         req = self._req("get", "/dash")
         resp = get_dashboard(req, project_id="pid")

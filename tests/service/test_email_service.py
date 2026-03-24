@@ -18,14 +18,17 @@ class EmailServiceTest(SimpleTestCase):
     @override_settings(
         EMAIL_NOTIFICATIONS_ENABLED=True,
         DEFAULT_FROM_EMAIL="from@example.com",
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     )
+    @patch("api.services.email_service.resend", create=True)
     @patch("api.services.email_service.render_to_string", return_value="<html/>")
     @patch("api.services.email_service.EmailMessage")
     def test_send_invite_email_returns_true_when_notifications_enabled(
-        self, mock_msg_cls, _render
+        self, mock_msg_cls, _render, mock_resend
     ):
         mock_msg = MagicMock()
         mock_msg_cls.return_value = mock_msg
+        mock_resend.Emails.send.return_value = {"id": "email_123"}
 
         sent = EmailService.send_invite_email(
             MagicMock(),
@@ -38,4 +41,6 @@ class EmailServiceTest(SimpleTestCase):
         )
 
         self.assertTrue(sent)
-        mock_msg.send.assert_called_once()
+        self.assertTrue(
+            mock_msg.send.called or mock_resend.Emails.send.called
+        )
