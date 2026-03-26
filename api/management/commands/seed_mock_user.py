@@ -82,7 +82,6 @@ from api.utils.log_payloads import project_member_snapshot, task_snapshot
 
 User = get_user_model()
 
-# Must match Frontend `src/constants/workCategories.ts` apiLabel values (Your Task Categories panel).
 AI_WORK_CATEGORIES = [
     "Conducting Research",
     "Creating Content and Visuals",
@@ -97,7 +96,6 @@ AI_WORK_CATEGORIES = [
     "Finalizing and Submitting Work",
 ]
 
-# Typical labels from AI-Service / k-means role output (CSV assignments).
 AI_ASSIGNED_ROLES = [
     "Task finisher",
     "Helper",
@@ -112,6 +110,63 @@ MOCK_FEEDBACK_TEMPLATE = """{name}, you are a very talented person, and your wor
 However, there are some areas you can improve, such as teamwork. You might need to pay more attention to collaborating with your team to work better with others. Another point is documentation and bug fixing—while you are already doing well, you could improve even further by focusing more on details. This would help increase your work efficiency.
 
 Lastly, balancing your work schedule is important. Some days, your workload is too heavy, which might cause stress or exhaustion, affecting your work quality. If you can improve in these areas, you will be able to work at your full potential and be even more effective!"""
+
+PROJECT_END_STATIC_TEMPLATE: list[dict[str, int]] = [
+    {"score": 1065, "damage_deal": 10320, "damage_receive": 410},
+    {"score": 1103, "damage_deal": 9185, "damage_receive": 520},
+    {"score": 958, "damage_deal": 9580, "damage_receive": 600},
+    {"score": 826, "damage_deal": 8260, "damage_receive": 710},
+]
+
+
+def _static_project_end_summary_rows(
+    *,
+    members: list[ProjectMember],
+) -> list[dict]:
+    """
+    Deterministic, editable ProjectEndSummary mock rows.
+
+    We assign stats to users in a stable way:
+    - Sort members by username so reruns are consistent
+    - Apply the template top-down as rank 1..N
+    - If team is larger than template, extend by decreasing scores and modest damage changes
+    """
+    if not members:
+        return []
+
+    stable_members = sorted(members, key=lambda m: (m.user.username or ""))
+    n = len(stable_members)
+
+    rows: list[dict] = []
+    last = PROJECT_END_STATIC_TEMPLATE[-1]
+    for i in range(n):
+        if i < len(PROJECT_END_STATIC_TEMPLATE):
+            base = PROJECT_END_STATIC_TEMPLATE[i]
+        else:
+            k = i - (len(PROJECT_END_STATIC_TEMPLATE) - 1)
+            base = {
+                "score": max(250, int(last["score"]) - 320 * k),
+                "damage_deal": max(0, int(last["damage_deal"]) - 95 * k),
+                "damage_receive": max(0, int(last["damage_receive"]) + 85 * k),
+            }
+
+        m = stable_members[i]
+        display_name = (m.user.name or m.user.username or "Member")[:255]
+        rows.append(
+            {
+                "order": i + 1,
+                "project_member_id": m.project_member_id,
+                "user_id": m.user.user_id,
+                "name": display_name,
+                "username": m.user.username,
+                "score": int(base["score"]),
+                "damage_deal": int(base["damage_deal"]),
+                "damage_receive": int(base["damage_receive"]),
+                "status": m.status,
+                "is_mvp": i == 0,
+            }
+        )
+    return rows
 
 
 def _json_workload_per_day(rng: random.Random) -> str:
@@ -1042,11 +1097,7 @@ class Command(BaseCommand):
                 members: list[ProjectMember] = []
                 for mi in idxs:
                     bu = demo_users[mi].business
-                    score = (
-                        999_999
-                        if (pidx == 0 and bu.username == first_u)
-                        else rng.randint(80, 2200)
-                    )
+                    score = rng.randint(80, 2200)
                     hp = rng.randint(20, 100)
                     # All party members stay Alive in mock data (no dead players in the game UI).
                     m = ProjectMember.objects.create(
@@ -1392,45 +1443,20 @@ class Command(BaseCommand):
                         )
                 boss_count = len(boss_list)
 
-                scored = []
-                for m in members:
-                    dmg_deal = (
-                        UserAttack.objects.filter(
-                            project_member=m,
-                            project_boss__project=proj,
-                        ).aggregate(total=Sum("damage_point"))["total"]
-                        or 0
-                    )
-                    dmg_recv = (
-                        BossAttack.objects.filter(
-                            project_member=m,
-                            project_boss__project=proj,
-                        ).aggregate(total=Sum("damage_point"))["total"]
-                        or 0
-                    )
-                    done_n = UserTask.objects.filter(
-                        project_member=m,
-                        task__project=proj,
-                        task__status="done",
-                    ).count()
-                    total_score = int(m.score + done_n * 12 + dmg_deal // 4)
-                    scored.append((total_score, dmg_deal, dmg_recv, m))
-
-                scored.sort(key=lambda x: x[0], reverse=True)
-                for order, (total_score, dmg_deal, dmg_recv, m) in enumerate(scored, start=1):
-                    display_name = (m.user.name or m.user.username or "Member")[:255]
+                static_rows = _static_project_end_summary_rows(members=members)
+                for row in static_rows:
                     ProjectEndSummary.objects.create(
-                        project_member_id=m.project_member_id,
+                        project_member_id=row["project_member_id"],
                         project_id=proj.project_id,
-                        user_id=m.user.user_id,
-                        order=order,
-                        name=display_name,
-                        username=m.user.username,
-                        score=total_score,
-                        damage_deal=int(dmg_deal),
-                        damage_receive=int(dmg_recv),
-                        status=m.status,
-                        is_mvp=(order == 1),
+                        user_id=row["user_id"],
+                        order=row["order"],
+                        name=row["name"],
+                        username=row["username"],
+                        score=row["score"],
+                        damage_deal=row["damage_deal"],
+                        damage_receive=row["damage_receive"],
+                        status=row["status"],
+                        is_mvp=row["is_mvp"],
                         boss=boss_list,
                         boss_count=boss_count,
                         reduction_percent=None,
